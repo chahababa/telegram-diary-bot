@@ -1,0 +1,35 @@
+# 環境變數（含 API 金鑰，絕對不可上傳）
+.env
+
+# Python 虛擬環境
+venv/
+.venv/
+
+# Python 快取
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
+# SQLite 資料庫
+*.db
+
+# Google 憑證
+credentials.json
+token.json
+
+# 日誌
+*.log
+
+# 本地暫存日記
+backup_diaries/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
