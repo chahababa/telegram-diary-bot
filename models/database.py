@@ -87,6 +87,11 @@ class Database:
                     created_at  TEXT    NOT NULL
                 );
 
+                CREATE TABLE IF NOT EXISTS settings (
+                    key         TEXT PRIMARY KEY,
+                    value       TEXT NOT NULL
+                );
+
                 CREATE INDEX IF NOT EXISTS idx_entries_user_date
                     ON entries(user_id, diary_date);
                 CREATE INDEX IF NOT EXISTS idx_surveys_user_date
@@ -227,3 +232,21 @@ class Database:
                 (user_id, limit),
             ).fetchall()
             return [dict(r) for r in rows]
+
+    # ── 設定操作 ────────────────────────────────
+
+    def get_setting(self, key: str, default: str = "") -> str:
+        """取得設定值"""
+        with self._get_conn() as conn:
+            row = conn.execute(
+                "SELECT value FROM settings WHERE key = ?", (key,)
+            ).fetchone()
+            return row["value"] if row else default
+
+    def set_setting(self, key: str, value: str) -> None:
+        """儲存設定值"""
+        with self._get_conn() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+                (key, value),
+            )

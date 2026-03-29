@@ -11,6 +11,7 @@ from telegram import BotCommand
 from telegram.ext import ApplicationBuilder
 
 from config import TELEGRAM_BOT_TOKEN, validate_config, LOCAL_BACKUP_DIR
+from handlers.admin_handlers import register_admin_handlers
 from handlers.command_handlers import register_command_handlers
 from handlers.message_handlers import register_message_handlers
 from handlers.survey_handlers import SurveyManager
@@ -126,6 +127,7 @@ async def post_init(app):
         BotCommand("diary", "手動產出今天的日記"),
         BotCommand("status", "查看 Bot 運作狀態"),
         BotCommand("survey", "手動開始問卷"),
+        BotCommand("admin", "管理員設定選單"),
     ]
     await app.bot.set_my_commands(commands)
     logger.info("Bot 指令選單已設定")
@@ -191,6 +193,7 @@ def main():
     # 註冊處理器（順序重要：ConversationHandler 需優先）
     app.add_handler(survey_manager.get_conversation_handler(), group=0)
     register_command_handlers(app)
+    register_admin_handlers(app)
     register_message_handlers(app)
 
     # 啟動 Bot
