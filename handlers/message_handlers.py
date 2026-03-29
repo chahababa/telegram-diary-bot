@@ -68,8 +68,8 @@ async def handle_voice_message(update: Update, context: ContextTypes.DEFAULT_TYP
         await voice_file.download_to_drive(tmp_path)
 
     try:
-        # Whisper 語音轉文字
-        text = await ai.transcribe_voice(tmp_path)
+        # Whisper 語音轉文字（回傳 tuple: text, error_msg）
+        text, error_msg = await ai.transcribe_voice(tmp_path)
 
         if text:
             db.add_entry(user_id, text, "voice", timestamp, diary_date)
@@ -79,10 +79,13 @@ async def handle_voice_message(update: Update, context: ContextTypes.DEFAULT_TYP
             )
             logger.info(f"使用者 {user_id} 新增語音記錄，日期: {diary_date}")
         else:
+            # 顯示具體的錯誤原因，方便除錯
+            error_detail = f"\n\n🔍 錯誤細節：{error_msg}" if error_msg else ""
             await update.message.reply_text(
-                "⚠️ 語音辨識失敗了，可能是音質不清楚。\n"
+                f"⚠️ 語音辨識失敗了。{error_detail}\n\n"
                 "請試著用文字輸入，或重新錄一段語音試試看！"
             )
+            logger.warning(f"使用者 {user_id} 語音辨識失敗: {error_msg}")
     finally:
         # 清理暫存檔
         try:

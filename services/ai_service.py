@@ -2,11 +2,12 @@
 AI 服務模組 — 負責語音轉文字 (Whisper) 與日記生成 (GPT-4o)
 """
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import Optional
 
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 from config import OPENAI_API_KEY, WHISPER_MODEL, WHISPER_LANGUAGE, GPT_MODEL
 from models.database import EntryRecord, SurveyRecord
@@ -15,32 +16,44 @@ logger = logging.getLogger(__name__)
 
 
 class AIService:
-    """封裝 OpenAI API 呼叫"""
+    """封裝 OpenAI API 呼叫（使用非同步客戶端）"""
 
     def __init__(self):
-        self.client = OpenAI(api_key=OPENAI_API_KEY)
+        self.client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 
     # ── 語音轉文字 ────────────────────────────
 
-    async def transcribe_voice(self, audio_file_path: str) -> Optional[str]:
+    async def transcribe_voice(self, audio_file_path: str) -> tuple[Optional[str], Optional[str]]:
         """
         使用 Whisper API 將語音檔轉為正體中文文字。
-        回傳轉錄文字，失敗時回傳 None。
+        回傳 (轉錄文字, 錯誤訊息)。成功時錯誤訊息為 None。
         """
         try:
+            file_size = Path(audio_file_path).stat().st_size
+            logger.info(f"開始語音轉文字，檔案大小: {file_size} bytes")
+
+            if file_size == 0:
+                return None, "語音檔案是空的"
+
             with open(audio_file_path, "rb") as audio_file:
-                response = self.client.audio.transcriptions.create(
+                response = await self.client.audio.transcriptions.create(
                     model=WHISPER_MODEL,
                     file=audio_file,
                     language=WHISPER_LANGUAGE,
                     response_format="text",
                 )
+
             text = response.strip() if isinstance(response, str) else response.text.strip()
+            if not text:
+                return None, "語音辨識結果為空（可能是靜音或雜訊）"
+
             logger.info(f"語音轉文字成功，長度: {len(text)} 字")
-            return text
+            return text, None
+
         except Exception as e:
-            logger.error(f"語音轉文字失敗: {e}")
-            return None
+            error_msg = str(e)
+            logger.error(f"語音轉文字失敗: {error_msg}")
+            return None, error_msg
 
     # ── 日記生成 ──────────────────────────────
 
@@ -99,7 +112,7 @@ class AIService:
 """
 
         try:
-            response = self.client.chat.completions.create(
+            response = await self.client.chat.completions.create(
                 model=GPT_MODEL,
                 messages=[
                     {"role": "system", "content": "你是板橋好初早餐老闆的私人日記助手，專門幫他記錄每天的生活點滴。"},
