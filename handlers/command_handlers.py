@@ -32,14 +32,13 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_today(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """處理 /today 指令 — 查看今天的記錄統計"""
-    from services.scheduler_service import SchedulerService
+    from services.scheduler_service import get_diary_date
     from models.database import Database
 
     db: Database = context.bot_data["db"]
-    scheduler: SchedulerService = context.bot_data["scheduler"]
 
     user_id = update.effective_user.id
-    diary_date = scheduler.get_diary_date()
+    diary_date = get_diary_date()
     count = db.get_entry_count_by_date(user_id, diary_date)
     entries = db.get_entries_by_date(user_id, diary_date)
 
@@ -89,17 +88,15 @@ async def cmd_diary(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """處理 /diary 指令 — 手動產出今天的日記"""
     from models.database import Database
     from services.ai_service import AIService
-    from services.drive_service import DriveService
-    from services.scheduler_service import SchedulerService
+    from services.gdrive_service import upload_diary, is_available
+    from services.scheduler_service import get_diary_date, get_now
     from templates.diary_template import DIARY_TEMPLATE
 
     db: Database = context.bot_data["db"]
     ai: AIService = context.bot_data["ai"]
-    drive: DriveService = context.bot_data["drive"]
-    scheduler: SchedulerService = context.bot_data["scheduler"]
 
     user_id = update.effective_user.id
-    diary_date = scheduler.get_diary_date()
+    diary_date = get_diary_date()
 
     await update.message.reply_text(f"📔 正在產出 {diary_date} 的日記，請稍候...")
 
@@ -111,15 +108,15 @@ async def cmd_diary(update: Update, context: ContextTypes.DEFAULT_TYPE):
     diary_content = await ai.generate_diary(diary_date, entries, survey, DIARY_TEMPLATE)
 
     # 儲存到資料庫
-    now_str = scheduler.get_now().isoformat()
+    now_str = get_now().isoformat()
     db.save_diary(user_id, diary_date, diary_content, now_str)
 
     # 上傳到 Google Drive
-    file_id = await drive.upload_diary(diary_date, diary_content)
+    file_id = await upload_diary(diary_date, diary_content)
     if file_id:
         db.mark_diary_uploaded(user_id, diary_date)
         upload_status = "✅ 已上傳至 Google Drive"
-    elif drive.is_available():
+    elif is_available():
         upload_status = "⚠️ Google Drive 上傳失敗，已本地暫存"
     else:
         upload_status = "ℹ️ Google Drive 未設定，已本地暫存"
@@ -141,19 +138,17 @@ async def cmd_diary(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """處理 /status 指令 — 查看 Bot 運作狀態"""
-    from services.scheduler_service import SchedulerService
-    from services.drive_service import DriveService
+    from services.scheduler_service import get_now, get_jobs_info
+    from services.gdrive_service import is_available
     from models.database import Database
 
-    scheduler: SchedulerService = context.bot_data["scheduler"]
-    drive: DriveService = context.bot_data["drive"]
     db: Database = context.bot_data["db"]
 
-    now = scheduler.get_now()
-    jobs = scheduler.get_jobs_info()
+    now = get_now()
+    jobs = get_jobs_info()
 
     # 系統狀態
-    drive_status = "✅ 已連線" if drive.is_available() else "❌ 未設定"
+    drive_status = "✅ 已連線" if is_available() else "❌ 未設定"
 
     lines = [
         "🤖 **Bot 運作狀態**\n",

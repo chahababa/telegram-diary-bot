@@ -12,7 +12,7 @@ from telegram.ext import ContextTypes, MessageHandler, Application, filters
 
 from models.database import Database
 from services.ai_service import AIService
-from services.scheduler_service import SchedulerService
+from services.scheduler_service import get_now, get_diary_date
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,6 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         return  # 讓 survey_handlers 的 ConversationHandler 處理
 
     db: Database = context.bot_data["db"]
-    scheduler: SchedulerService = context.bot_data["scheduler"]
 
     user_id = update.effective_user.id
     content = update.message.text.strip()
@@ -32,9 +31,9 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
     if not content:
         return
 
-    now = scheduler.get_now()
+    now = get_now()
     timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
-    diary_date = scheduler.get_diary_date()
+    diary_date = get_diary_date()
 
     db.add_entry(user_id, content, "text", timestamp, diary_date)
 
@@ -49,12 +48,11 @@ async def handle_voice_message(update: Update, context: ContextTypes.DEFAULT_TYP
     """處理語音訊息 — Whisper 轉文字後存入資料庫"""
     db: Database = context.bot_data["db"]
     ai: AIService = context.bot_data["ai"]
-    scheduler: SchedulerService = context.bot_data["scheduler"]
 
     user_id = update.effective_user.id
-    now = scheduler.get_now()
+    now = get_now()
     timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
-    diary_date = scheduler.get_diary_date()
+    diary_date = get_diary_date()
 
     await update.message.reply_text("🎤 正在辨識語音，請稍候...")
 

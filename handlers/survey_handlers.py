@@ -13,7 +13,7 @@ from telegram.ext import (
 )
 
 from models.database import Database
-from services.scheduler_service import SchedulerService
+from services.scheduler_service import get_now, get_diary_date
 
 logger = logging.getLogger(__name__)
 
@@ -78,15 +78,13 @@ class SurveyManager:
     async def trigger_survey_for_all(self, app):
         """由排程觸發，對所有使用者發起問卷"""
         db: Database = app.bot_data["db"]
-        scheduler: SchedulerService = app.bot_data["scheduler"]
-
         user_ids = db.get_all_user_ids()
-        diary_date = scheduler.get_diary_date()
+        diary_date = get_diary_date()
 
         for user_id in user_ids:
             try:
                 # 建立問卷記錄
-                now_str = scheduler.get_now().isoformat()
+                now_str = get_now().isoformat()
                 survey_id = db.create_survey(user_id, diary_date, now_str)
                 self.active_surveys[user_id] = survey_id
 
@@ -105,8 +103,7 @@ class SurveyManager:
     async def timeout_survey_for_all(self, app):
         """23:50 超時自動結算所有未完成的問卷"""
         db: Database = app.bot_data["db"]
-        scheduler: SchedulerService = app.bot_data["scheduler"]
-        diary_date = scheduler.get_diary_date()
+        diary_date = get_diary_date()
 
         for user_id, survey_id in list(self.active_surveys.items()):
             try:
@@ -130,13 +127,12 @@ class SurveyManager:
     async def _start_survey(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """手動開始問卷（或被排程推播後使用者回覆時觸發）"""
         db: Database = context.bot_data["db"]
-        scheduler: SchedulerService = context.bot_data["scheduler"]
         user_id = update.effective_user.id
-        diary_date = scheduler.get_diary_date()
+        diary_date = get_diary_date()
 
         # 如果沒有進行中的問卷，建立一個
         if user_id not in self.active_surveys:
-            now_str = scheduler.get_now().isoformat()
+            now_str = get_now().isoformat()
             survey_id = db.create_survey(user_id, diary_date, now_str)
             self.active_surveys[user_id] = survey_id
 

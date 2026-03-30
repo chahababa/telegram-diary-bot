@@ -125,3 +125,7 @@ async def save_diary_locally(date_str: str, diary_content: str) -> str:
     file_path.write_text(diary_content, encoding="utf-8")
     logger.info(f"日記已暫存至本地：{file_path}")
     return str(file_path)
+
+def is_available() -> bool:
+    """檢查是否已經設定 Google Drive 相關環境變數"""
+    return bool(config.GOOGLE_CREDENTIALS_JSON and config.GOOGLE_DRIVE_FOLDER_ID)

@@ -66,9 +66,9 @@ def init_scheduler(bot: Bot):
         try:
             survey_hour = int(raw_survey)
         except ValueError:
-            survey_hour = config.QUESTIONNAIRE_HOUR
+            survey_hour = config.SURVEY_HOUR
     else:
-        survey_hour = config.QUESTIONNAIRE_HOUR
+        survey_hour = config.SURVEY_HOUR
 
     # 註冊定時提醒（每 3 小時）
     for hour in reminder_hours:
@@ -279,3 +279,35 @@ def shutdown_scheduler():
     if scheduler:
         scheduler.shutdown()
         logger.info("排程器已關閉")
+
+def get_now() -> datetime:
+    tz = ZoneInfo(config.TIMEZONE)
+    return datetime.now(tz)
+
+def get_diary_date(now_dt: datetime = None) -> str:
+    """取得目前的日記歸屬日期
+    如果目前時間在 00:00~04:00 (含) 之間，則歸屬前一天的日記。
+    """
+    if now_dt is None:
+        now_dt = get_now()
+    if now_dt.hour <= config.DIARY_GENERATION_HOUR:
+        return (now_dt - timedelta(days=1)).strftime("%Y-%m-%d")
+    return now_dt.strftime("%Y-%m-%d")
+
+def get_jobs_info() -> list[dict]:
+    """取得目前排程任務的資訊"""
+    global scheduler
+    if not scheduler:
+        return []
+    jobs = []
+    tz = ZoneInfo(config.TIMEZONE)
+    for job in scheduler.get_jobs():
+        next_run = "未定"
+        if job.next_run_time:
+            next_run = job.next_run_time.astimezone(tz).strftime("%Y-%m-%d %H:%M:%S")
+        jobs.append({
+            "id": job.id,
+            "name": job.name,
+            "next_run": next_run,
+        })
+    return jobs
