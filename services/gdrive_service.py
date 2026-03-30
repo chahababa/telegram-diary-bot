@@ -122,4 +122,4 @@ async def save_diary_locally(date_str: str, diary_content: str) -> str:
 
     file_path.write_text(diary_content, encoding="utf-8")
     logger.info(f"日記已暫存至本地：{file_path}")
-    return str(file_path
+    return str(file_path)
