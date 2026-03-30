@@ -29,6 +29,17 @@ class DriveService:
 
     def _init_service(self):
         """初始化 Google Drive API 服務"""
+                import json
+                        env_creds = os.getenv("GOOGLE_CREDENTIALS_JSON")
+                                if env_creds:
+                                                try:
+                                                                    creds_dict = json.loads(env_creds)
+                                                                                    self.service = build("drive", "v3", credentials=Credentials.from_service_account_info(creds_dict, scopes=SCOPES))
+                                                                                                    logger.info("Google Drive API initialized (env var)")
+                                                                                                                    return
+                                                                                                                                except Exception as e:
+                                                                                                                                                    logger.error(f"Failed from env var: {e}")
+                                                                                                                                                    
         creds_path = Path(GOOGLE_CREDENTIALS_FILE)
         if not creds_path.exists():
             logger.warning(
