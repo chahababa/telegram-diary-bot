@@ -255,4 +255,3 @@ def shutdown_scheduler():
     if scheduler:
         scheduler.shutdown()
         logger.info("排程器已關閉")
-Getting DOM...Pressing key...Stopping..
