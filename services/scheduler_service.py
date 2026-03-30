@@ -1,122 +1,258 @@
 """
-排程服務模組 — 使用 APScheduler 管理定時任務
+排程服務模組 — 管理定時提醒、問卷觸發與日記產出排程
+使用 APScheduler 實現持久化排程任務
 """
 
 import logging
-from datetime import datetime
+import os
+from datetime import datetime, timedelta
+from pathlib import Path
+from zoneinfo import ZoneInfo
 
-import pytz
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.cron import CronTrigger
+from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
+from telegram import Bot
 
-from config import TIMEZONE, REMINDER_HOURS, SURVEY_HOUR, SURVEY_TIMEOUT_MINUTE, DIARY_GENERATION_HOUR
+import config
+from models.database import get_all_user_ids, is_questionnaire_complete, get_or_create_summary
 
 logger = logging.getLogger(__name__)
 
+# 全域排程器
+scheduler: AsyncIOScheduler | None = None
 
-class SchedulerService:
-    """非同步排程服務"""
+# 全域 Bot 參考（在 main.py 初始化時設定）
+_bot: Bot | None = None
 
-    def __init__(self):
-        self.tz = pytz.timezone(TIMEZONE)
-        self.scheduler = AsyncIOScheduler(timezone=self.tz)
-        self._reminder_callback = None
-        self._survey_callback = None
-        self._survey_timeout_callback = None
-        self._diary_callback = None
 
-    def set_callbacks(
-        self,
-        reminder_callback,
-        survey_callback,
-        survey_timeout_callback,
-        diary_callback,
-    ):
-        """設定各排程的回呼函式"""
-        self._reminder_callback = reminder_callback
-        self._survey_callback = survey_callback
-        self._survey_timeout_callback = survey_timeout_callback
-        self._diary_callback = diary_callback
+def init_scheduler(bot: Bot):
+    """
+    初始化排程器
 
-    def start(self):
-        """啟動排程器並註冊所有排程任務"""
-        # 1. 定時提醒記日記（09:00, 12:00, 15:00, 18:00, 21:00）
-        for hour in REMINDER_HOURS:
-            self.scheduler.add_job(
-                self._reminder_callback,
-                CronTrigger(hour=hour, minute=0, timezone=self.tz),
-                id=f"reminder_{hour}",
-                name=f"日記提醒 {hour}:00",
-                replace_existing=True,
+    Args:
+        bot: Telegram Bot 實例
+    """
+    global scheduler, _bot
+    _bot = bot
+
+    tz = ZoneInfo(config.TIMEZONE)
+
+    # 使用與 diary_bot.db 相同的目錄存放 scheduler_jobs.db
+    db_dir = Path(config.DATABASE_PATH).parent
+    scheduler_db_path = db_dir / "scheduler_jobs.db"
+
+    # 使用 SQLite 作為持久化 jobstore，確保 Bot 重啟後排程不遺失
+    jobstores = {
+        "default": SQLAlchemyJobStore(url=f"sqlite:///{scheduler_db_path}")
+    }
+
+    scheduler = AsyncIOScheduler(
+        jobstores=jobstores,
+        timezone=tz,
+    )
+
+    # 註冊定時提醒（每 3 小時）
+    for hour in config.REMINDER_HOURS:
+        scheduler.add_job(
+            send_reminder,
+            "cron",
+            hour=hour,
+            minute=0,
+            id=f"reminder_{hour}",
+            replace_existing=True,
+            name=f"每日 {hour}:00 提醒",
+        )
+
+    # 註冊 23:00 問卷
+    scheduler.add_job(
+        send_questionnaire,
+        "cron",
+        hour=config.QUESTIONNAIRE_HOUR,
+        minute=0,
+        id="questionnaire_23",
+        replace_existing=True,
+        name="23:00 結算問卷",
+    )
+
+    # 註冊 23:50 問卷超時自動結算
+    scheduler.add_job(
+        auto_close_questionnaire,
+        "cron",
+        hour=23,
+        minute=50,
+        id="questionnaire_timeout",
+        replace_existing=True,
+        name="23:50 問卷超時結算",
+    )
+
+    # 註冊 00:00 日記產出
+    scheduler.add_job(
+        trigger_diary_generation,
+        "cron",
+        hour=config.DIARY_GENERATION_HOUR,
+        minute=0,
+        id="diary_generation_00",
+        replace_existing=True,
+        name="00:00 日記產出",
+    )
+
+    scheduler.start()
+    logger.info("排程器已啟動，所有排程任務已註冊")
+
+
+async def send_reminder():
+    """
+    發送定時提醒給所有使用者
+    """
+    if _bot is None:
+        logger.error("Bot 尚未初始化")
+        return
+
+    tz = ZoneInfo(config.TIMEZONE)
+    now = datetime.now(tz)
+    time_str = now.strftime("%H:%M")
+
+    user_ids = get_all_user_ids()
+    logger.info(f"發送提醒：{time_str}，共 {len(user_ids)} 位使用者")
+
+    for user_id in user_ids:
+        try:
+            await _bot.send_message(
+                chat_id=user_id,
+                text=f"📝 現在是 {time_str}，記一下你這幾個小時做了什麼吧！",
             )
-            logger.info(f"已註冊提醒排程: {hour:02d}:00")
+        except Exception as e:
+            logger.warning(f"無法發送提醒給使用者 {user_id}：{e}")
 
-        # 2. 23:00 結算問卷
-        self.scheduler.add_job(
-            self._survey_callback,
-            CronTrigger(hour=SURVEY_HOUR, minute=0, timezone=self.tz),
-            id="survey_start",
-            name="結算問卷開始",
-            replace_existing=True,
-        )
-        logger.info(f"已註冊問卷排程: {SURVEY_HOUR:02d}:00")
 
-        # 3. 23:50 問卷超時自動結算
-        self.scheduler.add_job(
-            self._survey_timeout_callback,
-            CronTrigger(hour=SURVEY_HOUR, minute=SURVEY_TIMEOUT_MINUTE, timezone=self.tz),
-            id="survey_timeout",
-            name="問卷超時結算",
-            replace_existing=True,
-        )
-        logger.info(f"已註冊問卷超時排程: {SURVEY_HOUR:02d}:{SURVEY_TIMEOUT_MINUTE:02d}")
+async def send_questionnaire():
+    """
+    發送 23:00 結算問卷給所有使用者
+    """
+    if _bot is None:
+        logger.error("Bot 尚未初始化")
+        return
 
-        # 4. 00:00 自動產出日記
-        self.scheduler.add_job(
-            self._diary_callback,
-            CronTrigger(hour=DIARY_GENERATION_HOUR, minute=0, timezone=self.tz),
-            id="diary_generation",
-            name="日記自動產出",
-            replace_existing=True,
-        )
-        logger.info(f"已註冊日記產出排程: {DIARY_GENERATION_HOUR:02d}:00")
+    tz = ZoneInfo(config.TIMEZONE)
+    today = datetime.now(tz).strftime("%Y-%m-%d")
 
-        self.scheduler.start()
-        logger.info("排程服務已啟動")
+    user_ids = get_all_user_ids()
+    logger.info(f"發送結算問卷：{today}，共 {len(user_ids)} 位使用者")
 
-    def stop(self):
-        """停止排程器"""
-        if self.scheduler.running:
-            self.scheduler.shutdown(wait=False)
-            logger.info("排程服務已停止")
+    for user_id in user_ids:
+        try:
+            # 建立或取得當日摘要
+            get_or_create_summary(user_id, today)
 
-    def get_now(self) -> datetime:
-        """取得台灣時區的當前時間"""
-        return datetime.now(self.tz)
+            await _bot.send_message(
+                chat_id=user_id,
+                text=(
+                    "🌙 今天辛苦了！讓我們來回顧一下今天吧～\n\n"
+                    "📋 問題 1/4：\n"
+                    "今天最重要的一件事是什麼？"
+                ),
+            )
+        except Exception as e:
+            logger.warning(f"無法發送問卷給使用者 {user_id}：{e}")
 
-    def get_today_str(self) -> str:
-        """取得今天的日期字串 YYYY-MM-DD"""
-        return self.get_now().strftime("%Y-%m-%d")
 
-    def get_diary_date(self) -> str:
-        """
-        取得歸屬日期。
-        如果現在是 00:00~04:59，歸屬前一天（處理跨日情境）。
-        """
-        now = self.get_now()
-        if now.hour < 5:
-            from datetime import timedelta
-            return (now - timedelta(days=1)).strftime("%Y-%m-%d")
-        return now.strftime("%Y-%m-%d")
+async def auto_close_questionnaire():
+    """
+    23:50 超時機制 — 未完成的問卷以現有資料自動結算
+    """
+    if _bot is None:
+        return
 
-    def get_jobs_info(self) -> list[dict]:
-        """取得所有排程任務資訊"""
-        jobs = self.scheduler.get_jobs()
-        return [
-            {
-                "id": job.id,
-                "name": job.name,
-                "next_run": str(job.next_run_time),
-            }
-            for job in jobs
-        ]
+    tz = ZoneInfo(config.TIMEZONE)
+    today = datetime.now(tz).strftime("%Y-%m-%d")
+
+    user_ids = get_all_user_ids()
+
+    for user_id in user_ids:
+        if not is_questionnaire_complete(user_id, today):
+            try:
+                from models.database import update_summary_field
+                # 將問卷步驟強制設為完成
+                update_summary_field(user_id, today, "questionnaire_step", 4)
+
+                await _bot.send_message(
+                    chat_id=user_id,
+                    text="⏰ 問卷回覆時間已截止，將以目前收集到的資料產出日記。",
+                )
+                logger.info(f"使用者 {user_id} 問卷超時自動結算")
+            except Exception as e:
+                logger.warning(f"無法通知使用者 {user_id} 問卷超時：{e}")
+
+
+async def trigger_diary_generation():
+    """
+    00:00 觸發日記產出
+    """
+    if _bot is None:
+        return
+
+    tz = ZoneInfo(config.TIMEZONE)
+    # 產出的是「昨天」的日記
+    yesterday = (datetime.now(tz) - timedelta(days=1)).strftime("%Y-%m-%d")
+
+    user_ids = get_all_user_ids()
+    logger.info(f"觸發日記產出：{yesterday}，共 {len(user_ids)} 位使用者")
+
+    for user_id in user_ids:
+        try:
+            from services.diary_service import generate_diary
+            from services.gdrive_service import upload_diary, save_diary_locally
+            from models.database import update_summary_field, is_diary_generated
+
+            # 避免重複產出
+            if is_diary_generated(user_id, yesterday):
+                logger.info(f"使用者 {user_id} 的 {yesterday} 日記已存在，跳過")
+                continue
+
+            # 產出日記
+            diary = await generate_diary(user_id, yesterday)
+
+            # 傳送至 Telegram
+            # Telegram 訊息長度限制為 4096 字元
+            if len(diary) <= 4096:
+                await _bot.send_message(chat_id=user_id, text=diary)
+            else:
+                # 分段傳送
+                chunks = [diary[i:i + 4000] for i in range(0, len(diary), 4000)]
+                for chunk in chunks:
+                    await _bot.send_message(chat_id=user_id, text=chunk)
+
+            # 上傳至 Google Drive
+            file_id = await upload_diary(yesterday, diary)
+            if file_id:
+                update_summary_field(user_id, yesterday, "diary_uploaded", True)
+                await _bot.send_message(
+                    chat_id=user_id,
+                    text="✅ 日記已同步儲存至 Google Drive！",
+                )
+            else:
+                # 上傳失敗，暫存本地
+                local_path = await save_diary_locally(yesterday, diary)
+                await _bot.send_message(
+                    chat_id=user_id,
+                    text=f"⚠️ Google Drive 上傳失敗，日記已暫存至本地：{local_path}",
+                )
+
+        except Exception as e:
+            logger.error(f"使用者 {user_id} 日記產出失敗：{e}")
+            try:
+                await _bot.send_message(
+                    chat_id=user_id,
+                    text="⚠️ 日記產出時發生錯誤，請稍後使用 /diary 手動觸發。",
+                )
+            except Exception:
+                pass
+
+
+def shutdown_scheduler():
+    """關閉排程器"""
+    global scheduler
+    if scheduler:
+        scheduler.shutdown()
+        logger.info("排程器已關閉")
+Getting DOM...Pressing key...Stopping...
