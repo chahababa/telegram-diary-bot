@@ -14,7 +14,7 @@ from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from telegram import Bot
 
 import config
-from models.database import get_all_user_ids, is_questionnaire_complete, get_or_create_summary
+from models.database import get_all_user_ids, is_questionnaire_complete, get_or_create_summary, _get_db
 
 logger = logging.getLogger(__name__)
 
@@ -50,9 +50,28 @@ def init_scheduler(bot: Bot):
         jobstores=jobstores,
         timezone=tz,
     )
+    
+    db = _get_db()
+    raw_hours = db.get_setting("reminder_hours", "")
+    if raw_hours:
+        try:
+            reminder_hours = [int(x.strip()) for x in raw_hours.split(",")]
+        except ValueError:
+            reminder_hours = config.REMINDER_HOURS
+    else:
+        reminder_hours = config.REMINDER_HOURS
+
+    raw_survey = db.get_setting("survey_hour", "")
+    if raw_survey:
+        try:
+            survey_hour = int(raw_survey)
+        except ValueError:
+            survey_hour = config.QUESTIONNAIRE_HOUR
+    else:
+        survey_hour = config.QUESTIONNAIRE_HOUR
 
     # 註冊定時提醒（每 3 小時）
-    for hour in config.REMINDER_HOURS:
+    for hour in reminder_hours:
         scheduler.add_job(
             send_reminder,
             "cron",
@@ -67,11 +86,11 @@ def init_scheduler(bot: Bot):
     scheduler.add_job(
         send_questionnaire,
         "cron",
-        hour=config.QUESTIONNAIRE_HOUR,
+        hour=survey_hour,
         minute=0,
         id="questionnaire_23",
         replace_existing=True,
-        name="23:00 結算問卷",
+        name=f"{survey_hour}:00 結算問卷",
     )
 
     # 註冊 23:50 問卷超時自動結算
@@ -111,15 +130,20 @@ async def send_reminder():
     tz = ZoneInfo(config.TIMEZONE)
     now = datetime.now(tz)
     time_str = now.strftime("%H:%M")
+    current_hour = now.hour
 
     user_ids = get_all_user_ids()
     logger.info(f"發送提醒：{time_str}，共 {len(user_ids)} 位使用者")
+    
+    db = _get_db()
+    custom_msg = db.get_setting(f"reminder_msg_{current_hour}", "")
+    msg_text = custom_msg if custom_msg else f"📝 現在是 {time_str}，記一下你這幾個小時做了什麼吧！"
 
     for user_id in user_ids:
         try:
             await _bot.send_message(
                 chat_id=user_id,
-                text=f"📝 現在是 {time_str}，記一下你這幾個小時做了什麼吧！",
+                text=msg_text,
             )
         except Exception as e:
             logger.warning(f"無法發送提醒給使用者 {user_id}：{e}")
@@ -148,10 +172,10 @@ async def send_questionnaire():
                 chat_id=user_id,
                 text=(
                     "🌙 今天辛苦了！讓我們來回顧一下今天吧～\n\n"
-                    "📋 問題 1/4：\n"
-                    "今天最重要的一件事是什麼？"
+                    "👉 請輸入 /survey 開始今日回顧問卷"
                 ),
             )
+            logger.info(f"已發送結算問卷提醒給 {user_id}")
         except Exception as e:
             logger.warning(f"無法發送問卷給使用者 {user_id}：{e}")
 

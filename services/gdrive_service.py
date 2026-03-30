@@ -11,6 +11,7 @@ from pathlib import Path
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
+import asyncio
 
 import config
 
@@ -80,11 +81,12 @@ async def upload_diary(date_str: str, diary_content: str, max_retries: int = 3) 
                     resumable=True,
                 )
 
-                file = service.files().create(
+                request = service.files().create(
                     body=file_metadata,
                     media_body=media,
                     fields="id, webViewLink",
-                ).execute()
+                )
+                file = await asyncio.to_thread(request.execute)
 
                 file_id = file.get("id")
                 web_link = file.get("webViewLink", "")

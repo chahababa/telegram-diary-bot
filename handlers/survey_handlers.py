@@ -94,9 +94,7 @@ class SurveyManager:
                     chat_id=user_id,
                     text=(
                         "🌙 **晚安！來回顧今天吧！**\n\n"
-                        "我會問你幾個問題，幫你整理今天的日記。\n"
-                        "如果不想回答某題，可以輸入 /skip 跳過。\n\n"
-                        "❓ **今天最重要的一件事是什麼？**"
+                        "👉 請輸入 /survey 開始今日回顧問卷"
                     ),
                     parse_mode="Markdown",
                 )
@@ -143,6 +141,7 @@ class SurveyManager:
             self.active_surveys[user_id] = survey_id
 
         context.user_data["survey_active"] = True
+        context.user_data["survey_step"] = STEP_IMPORTANT
 
         await update.message.reply_text(
             "🌙 開始今日回顧問卷！\n\n"
@@ -161,6 +160,7 @@ class SurveyManager:
         if survey_id:
             db.update_survey_field(survey_id, "most_important", update.message.text.strip())
 
+        context.user_data["survey_step"] = STEP_GRATITUDE_1
         await update.message.reply_text(
             "👍 收到！\n\n🙏 **今天感恩的第 1 件事是什麼？**",
             parse_mode="Markdown",
@@ -176,6 +176,7 @@ class SurveyManager:
         if survey_id:
             db.update_survey_field(survey_id, "gratitude_1", update.message.text.strip())
 
+        context.user_data["survey_step"] = STEP_GRATITUDE_2
         await update.message.reply_text(
             "🙏 **感恩的第 2 件事？**",
             parse_mode="Markdown",
@@ -191,6 +192,7 @@ class SurveyManager:
         if survey_id:
             db.update_survey_field(survey_id, "gratitude_2", update.message.text.strip())
 
+        context.user_data["survey_step"] = STEP_GRATITUDE_3
         await update.message.reply_text(
             "🙏 **感恩的第 3 件事？**",
             parse_mode="Markdown",
@@ -206,6 +208,7 @@ class SurveyManager:
         if survey_id:
             db.update_survey_field(survey_id, "gratitude_3", update.message.text.strip())
 
+        context.user_data["survey_step"] = STEP_MOOD
         await update.message.reply_text(
             "😊 **今天的心情評分？**\n\n請選擇 -2 到 +2：",
             parse_mode="Markdown",
@@ -235,6 +238,7 @@ class SurveyManager:
         if survey_id:
             db.update_survey_field(survey_id, "mood_score", score)
 
+        context.user_data["survey_step"] = STEP_ADDITIONAL
         await update.message.reply_text(
             "📝 **還有什麼想補充的嗎？**\n\n"
             "（沒有的話輸入「沒有」或 /skip）",
@@ -274,13 +278,36 @@ class SurveyManager:
 
     async def _skip_survey(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """跳過當前問題"""
-        # 直接進入下一步
-        # 取得目前步驟（透過 ConversationHandler 內部狀態）
-        await update.message.reply_text(
-            "⏭️ 已跳過。繼續下一題！",
-            reply_markup=ReplyKeyboardRemove(),
-        )
-        return ConversationHandler.END
+        current_step = context.user_data.get("survey_step", STEP_IMPORTANT)
+        
+        if current_step == STEP_IMPORTANT:
+            next_step = STEP_GRATITUDE_1
+            text = "⏭️ 已跳過。\n\n🙏 **今天感恩的第 1 件事是什麼？**"
+            markup = ReplyKeyboardRemove()
+        elif current_step == STEP_GRATITUDE_1:
+            next_step = STEP_GRATITUDE_2
+            text = "⏭️ 已跳過。\n\n🙏 **感恩的第 2 件事？**"
+            markup = None
+        elif current_step == STEP_GRATITUDE_2:
+            next_step = STEP_GRATITUDE_3
+            text = "⏭️ 已跳過。\n\n🙏 **感恩的第 3 件事？**"
+            markup = None
+        elif current_step == STEP_GRATITUDE_3:
+            next_step = STEP_MOOD
+            text = "⏭️ 已跳過。\n\n😊 **今天的心情評分？**\n\n請選擇 -2 到 +2："
+            markup = MOOD_KEYBOARD
+        elif current_step == STEP_MOOD:
+            next_step = STEP_ADDITIONAL
+            text = "⏭️ 已跳過。\n\n📝 **還有什麼想補充的嗎？**\n\n（沒有的話輸入「沒有」或 /skip）"
+            markup = ReplyKeyboardRemove()
+        else:
+            # 補充內容也跳過，就完成問卷
+            update.message.text = "沒有"
+            return await self._handle_additional(update, context)
+
+        context.user_data["survey_step"] = next_step
+        await update.message.reply_text(text, parse_mode="Markdown", reply_markup=markup)
+        return next_step
 
     async def _cancel_survey(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """取消問卷"""

@@ -1,6 +1,7 @@
 """ 資料庫模組 — 使用 SQLite 儲存每日記錄與問卷回覆 """
 
 import sqlite3
+import logging
 from dataclasses import dataclass
 from datetime import datetime, date
 from pathlib import Path
@@ -8,25 +9,26 @@ from typing import Optional
 
 from config import DATABASE_PATH
 
+logger = logging.getLogger(__name__)
 
 @dataclass
 class EntryRecord:
-        """單筆記錄（文字或語音轉文字後的內容）"""
-        id: Optional[int]
-        user_id: int
-        content: str
-        entry_type: str  # "text" 或 "voice"
+    """單筆記錄（文字或語音轉文字後的內容）"""
+    id: Optional[int]
+    user_id: int
+    content: str
+    entry_type: str  # "text" 或 "voice"
     timestamp: str   # ISO 格式台灣時間
     diary_date: str  # 歸屬日期 YYYY-MM-DD
 
 
 @dataclass
 class SurveyRecord:
-        """每日結算問卷"""
-        id: Optional[int]
-        user_id: int
-        diary_date: str
-        most_important: Optional[str]   # 最重要的事
+    """每日結算問卷"""
+    id: Optional[int]
+    user_id: int
+    diary_date: str
+    most_important: Optional[str]   # 最重要的事
     gratitude_1: Optional[str]      # 感恩第 1 件
     gratitude_2: Optional[str]      # 感恩第 2 件
     gratitude_3: Optional[str]      # 感恩第 3 件
@@ -37,291 +39,313 @@ class SurveyRecord:
 
 
 class Database:
-        """SQLite 資料庫操作封裝"""
+    """SQLite 資料庫操作封裝"""
 
     def __init__(self, db_path: str = DATABASE_PATH):
-                self.db_path = db_path
-                Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-                self._init_tables()
+        self.db_path = db_path
+        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+        self._init_tables()
+        self._migrate_tables()
 
     def _get_conn(self) -> sqlite3.Connection:
-                conn = sqlite3.connect(self.db_path)
-                conn.row_factory = sqlite3.Row
-                return conn
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
 
     def _init_tables(self):
-                """建立資料表"""
-                with self._get_conn() as conn:
-                                conn.executescript("""
-                                                CREATE TABLE IF NOT EXISTS entries (
-                                                                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                                                                        user_id INTEGER NOT NULL,
-                                                                                                            content TEXT NOT NULL,
-                                                                                                                                entry_type TEXT NOT NULL DEFAULT 'text',
-                                                                                                                                                    timestamp TEXT NOT NULL,
-                                                                                                                                                                        diary_date TEXT NOT NULL
-                                                                                                                                                                                        );
-                                                                                                                                                                                        
-                                                                                                                                                                                                        CREATE TABLE IF NOT EXISTS surveys (
-                                                                                                                                                                                                                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                                                                                                                                                                                                                                user_id INTEGER NOT NULL,
-                                                                                                                                                                                                                                                                    diary_date TEXT NOT NULL,
-                                                                                                                                                                                                                                                                                        most_important TEXT,
-                                                                                                                                                                                                                                                                                                            gratitude_1 TEXT,
-                                                                                                                                                                                                                                                                                                                                gratitude_2 TEXT,
-                                                                                                                                                                                                                                                                                                                                                    gratitude_3 TEXT,
-                                                                                                                                                                                                                                                                                                                                                                        mood_score INTEGER,
-                                                                                                                                                                                                                                                                                                                                                                                            additional_notes TEXT,
-                                                                                                                                                                                                                                                                                                                                                                                                                completed INTEGER NOT NULL DEFAULT 0,
-                                                                                                                                                                                                                                                                                                                                                                                                                                    created_at TEXT NOT NULL
-                                                                                                                                                                                                                                                                                                                                                                                                                                                    );
-                                                                                                                                                                                                                                                                                                                                                                                                                                                    
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                    CREATE TABLE IF NOT EXISTS generated_diaries (
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            user_id INTEGER NOT NULL,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                diary_date TEXT NOT NULL UNIQUE,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    content TEXT NOT NULL,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        uploaded INTEGER NOT NULL DEFAULT 0,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            created_at TEXT NOT NULL
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            );
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            CREATE TABLE IF NOT EXISTS settings (
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                key TEXT PRIMARY KEY,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    value TEXT NOT NULL
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    );
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    CREATE INDEX IF NOT EXISTS idx_entries_user_date ON entries(user_id, diary_date);
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    CREATE INDEX IF NOT EXISTS idx_surveys_user_date ON surveys(user_id, diary_date);
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                """)
+        """建立資料表"""
+        with self._get_conn() as conn:
+            conn.executescript("""
+                CREATE TABLE IF NOT EXISTS entries (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    content TEXT NOT NULL,
+                    entry_type TEXT NOT NULL DEFAULT 'text',
+                    timestamp TEXT NOT NULL,
+                    diary_date TEXT NOT NULL
+                );
+                
+                CREATE TABLE IF NOT EXISTS surveys (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    diary_date TEXT NOT NULL,
+                    most_important TEXT,
+                    gratitude_1 TEXT,
+                    gratitude_2 TEXT,
+                    gratitude_3 TEXT,
+                    mood_score INTEGER,
+                    additional_notes TEXT,
+                    completed INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL
+                );
+                
+                CREATE TABLE IF NOT EXISTS generated_diaries (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    diary_date TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    uploaded INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL,
+                    UNIQUE(user_id, diary_date)
+                );
+                
+                CREATE TABLE IF NOT EXISTS settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                );
+                
+                CREATE INDEX IF NOT EXISTS idx_entries_user_date ON entries(user_id, diary_date);
+                CREATE INDEX IF NOT EXISTS idx_surveys_user_date ON surveys(user_id, diary_date);
+            """)
 
-            # ── 記錄操作 ────────────────────────────────
-            def add_entry(self, user_id: int, content: str, entry_type: str,
-                                            timestamp: str, diary_date: str) -> int:
-                                                        """新增一筆生活記錄"""
-                                                        with self._get_conn() as conn:
-                                                                        cursor = conn.execute(
-                                                                                            "INSERT INTO entries (user_id, content, entry_type, timestamp, diary_date) "
-                                                                                            "VALUES (?, ?, ?, ?, ?)",
-                                                                                            (user_id, content, entry_type, timestamp, diary_date),
-                                                                        )
-                                                                        return cursor.lastrowid
+    def _migrate_tables(self):
+        """檢查並遷移舊版資料表結構"""
+        with self._get_conn() as conn:
+            row = conn.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='generated_diaries'"
+            ).fetchone()
+            if row and 'UNIQUE(user_id, diary_date)' not in row['sql'] and 'diary_date' in row['sql']:
+                try:
+                    conn.executescript("""
+                        CREATE TABLE IF NOT EXISTS generated_diaries_new (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            user_id INTEGER NOT NULL,
+                            diary_date TEXT NOT NULL,
+                            content TEXT NOT NULL,
+                            uploaded INTEGER NOT NULL DEFAULT 0,
+                            created_at TEXT NOT NULL,
+                            UNIQUE(user_id, diary_date)
+                        );
+                        INSERT OR IGNORE INTO generated_diaries_new SELECT * FROM generated_diaries;
+                        DROP TABLE generated_diaries;
+                        ALTER TABLE generated_diaries_new RENAME TO generated_diaries;
+                    """)
+                    logger.info("已遷移 generated_diaries 資料表（修復 UNIQUE 限制）")
+                except Exception as e:
+                    logger.warning(f"遷移 generated_diaries 失敗: {e}")
 
-                                                    def get_entries_by_date(self, user_id: int, diary_date: str) -> list[EntryRecord]:
-                                                                """取得指定日期的所有記錄"""
-                                                                with self._get_conn() as conn:
-                                                                                rows = conn.execute(
-                                                                                                    "SELECT * FROM entries WHERE user_id = ? AND diary_date = ? ORDER BY timestamp",
-                                                                                                    (user_id, diary_date),
-                                                                                ).fetchall()
-                                                                                return [
-                                                                                    EntryRecord(
-                                                                                        id=r["id"],
-                                                                                        user_id=r["user_id"],
-                                                                                        content=r["content"],
-                                                                                        entry_type=r["entry_type"],
-                                                                                        timestamp=r["timestamp"],
-                                                                                        diary_date=r["diary_date"],
-                                                                                    )
-                                                                                    for r in rows
-                                                                                ]
+    # ── 記錄操作 ────────────────────────────────
+    def add_entry(self, user_id: int, content: str, entry_type: str,
+                  timestamp: str, diary_date: str) -> int:
+        """新增一筆生活記錄"""
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                "INSERT INTO entries (user_id, content, entry_type, timestamp, diary_date) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (user_id, content, entry_type, timestamp, diary_date),
+            )
+            return cursor.lastrowid
 
-                                                            def get_entry_count_by_date(self, user_id: int, diary_date: str) -> int:
-                                                                        """取得指定日期的記錄數量"""
-                                                                        with self._get_conn() as conn:
-                                                                                        row = conn.execute(
-                                                                                                            "SELECT COUNT(*) as cnt FROM entries WHERE user_id = ? AND diary_date = ?",
-                                                                                                            (user_id, diary_date),
-                                                                                            ).fetchone()
-                                                                                        return row["cnt"]
+    def get_entries_by_date(self, user_id: int, diary_date: str) -> list[EntryRecord]:
+        """取得指定日期的所有記錄"""
+        with self._get_conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM entries WHERE user_id = ? AND diary_date = ? ORDER BY timestamp",
+                (user_id, diary_date),
+            ).fetchall()
+            return [
+                EntryRecord(
+                    id=r["id"],
+                    user_id=r["user_id"],
+                    content=r["content"],
+                    entry_type=r["entry_type"],
+                    timestamp=r["timestamp"],
+                    diary_date=r["diary_date"],
+                )
+                for r in rows
+            ]
 
-                                                                    # ── 問卷操作 ────────────────────────────────
-                                                                    def create_survey(self, user_id: int, diary_date: str, created_at: str) -> int:
-                                                                                """建立當天的問卷"""
-                                                                                with self._get_conn() as conn:
-                                                                                                cursor = conn.execute(
-                                                                                                                    "INSERT INTO surveys (user_id, diary_date, created_at) VALUES (?, ?, ?)",
-                                                                                                                    (user_id, diary_date, created_at),
-                                                                                                    )
-                                                                                                return cursor.lastrowid
+    def get_entry_count_by_date(self, user_id: int, diary_date: str) -> int:
+        """取得指定日期的記錄數量"""
+        with self._get_conn() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) as cnt FROM entries WHERE user_id = ? AND diary_date = ?",
+                (user_id, diary_date),
+            ).fetchone()
+            return row["cnt"]
 
-                                                                            def get_survey(self, user_id: int, diary_date: str) -> Optional[SurveyRecord]:
-                                                                                        """取得指定日期的問卷"""
-                                                                                        with self._get_conn() as conn:
-                                                                                                        row = conn.execute(
-                                                                                                                            "SELECT * FROM surveys WHERE user_id = ? AND diary_date = ? "
-                                                                                                                            "ORDER BY id DESC LIMIT 1",
-                                                                                                                            (user_id, diary_date),
-                                                                                                            ).fetchone()
-                                                                                                        if not row:
-                                                                                                                            return None
-                                                                                                                        return SurveyRecord(
-                                                                                                            id=row["id"],
-                                                                                                            user_id=row["user_id"],
-                                                                                                            diary_date=row["diary_date"],
-                                                                                                            most_important=row["most_important"],
-                                                                                                            gratitude_1=row["gratitude_1"],
-                                                                                                            gratitude_2=row["gratitude_2"],
-                                                                                                            gratitude_3=row["gratitude_3"],
-                                                                                                            mood_score=row["mood_score"],
-                                                                                                            additional_notes=row["additional_notes"],
-                                                                                                            completed=bool(row["completed"]),
-                                                                                                            created_at=row["created_at"],
-                                                                                                            )
+    # ── 問卷操作 ────────────────────────────────
+    def create_survey(self, user_id: int, diary_date: str, created_at: str) -> int:
+        """建立當天的問卷"""
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                "INSERT INTO surveys (user_id, diary_date, created_at) VALUES (?, ?, ?)",
+                (user_id, diary_date, created_at),
+            )
+            return cursor.lastrowid
 
-                                                                                    def update_survey_field(self, survey_id: int, field: str, value) -> None:
-                                                                                                """更新問卷的單一欄位（以 survey_id 定位）"""
-                                                                                                allowed = {
-                                                                                                    "most_important", "gratitude_1", "gratitude_2", "gratitude_3",
-                                                                                                    "mood_score", "additional_notes", "completed",
-                                                                                                }
-                                                                                                if field not in allowed:
-                                                                                                                raise ValueError(f"不允許更新欄位: {field}")
-                                                                                                            with self._get_conn() as conn:
-                                                                                                                            conn.execute(
-                                                                                                                                                f"UPDATE surveys SET {field} = ? WHERE id = ?",
-                                                                                                                                                (value, survey_id),
-                                                                                                                                )
-                                                                                                                
-    def update_summary_field(self, user_id: int, diary_date: str, field: str, value) -> None:
-                """更新問卷欄位（以 user_id + diary_date 定位，供排程器使用）"""
+    def get_survey(self, user_id: int, diary_date: str) -> Optional[SurveyRecord]:
+        """取得指定日期的問卷"""
+        with self._get_conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM surveys WHERE user_id = ? AND diary_date = ? "
+                "ORDER BY id DESC LIMIT 1",
+                (user_id, diary_date),
+            ).fetchone()
+            if not row:
+                return None
+            return SurveyRecord(
+                id=row["id"],
+                user_id=row["user_id"],
+                diary_date=row["diary_date"],
+                most_important=row["most_important"],
+                gratitude_1=row["gratitude_1"],
+                gratitude_2=row["gratitude_2"],
+                gratitude_3=row["gratitude_3"],
+                mood_score=row["mood_score"],
+                additional_notes=row["additional_notes"],
+                completed=bool(row["completed"]),
+                created_at=row["created_at"],
+            )
+
+    def update_survey_field(self, survey_id: int, field: str, value) -> None:
+        """更新問卷的單一欄位（以 survey_id 定位）"""
         allowed = {
-                        "most_important", "gratitude_1", "gratitude_2", "gratitude_3",
-                        "mood_score", "additional_notes", "completed",
-                        "questionnaire_step", "diary_uploaded",
+            "most_important", "gratitude_1", "gratitude_2", "gratitude_3",
+            "mood_score", "additional_notes", "completed",
         }
         if field not in allowed:
-                        raise ValueError(f"不允許更新欄位: {field}")
-        # questionnaire_step / diary_uploaded 不在 surveys 欄位，忽略即可
-        if field in ("questionnaire_step", "diary_uploaded"):
-                        return
+            raise ValueError(f"不允許更新欄位: {field}")
         with self._get_conn() as conn:
-                        conn.execute(
-                                            f"UPDATE surveys SET {field} = ? WHERE user_id = ? AND diary_date = ?",
-                                            (value, user_id, diary_date),
-                        )
+            conn.execute(
+                f"UPDATE surveys SET {field} = ? WHERE id = ?",
+                (value, survey_id),
+            )
+
+    def update_summary_field(self, user_id: int, diary_date: str, field: str, value) -> None:
+        """更新問卷欄位（以 user_id + diary_date 定位，供排程器使用）"""
+        allowed = {
+            "most_important", "gratitude_1", "gratitude_2", "gratitude_3",
+            "mood_score", "additional_notes", "completed",
+            "questionnaire_step", "diary_uploaded",
+        }
+        if field not in allowed:
+            raise ValueError(f"不允許更新欄位: {field}")
+        if field in ("questionnaire_step", "diary_uploaded"):
+            return
+        with self._get_conn() as conn:
+            conn.execute(
+                f"UPDATE surveys SET {field} = ? WHERE user_id = ? AND diary_date = ?",
+                (value, user_id, diary_date),
+            )
 
     def is_questionnaire_complete(self, user_id: int, diary_date: str) -> bool:
-                """確認指定日期的問卷是否已完成"""
+        """確認指定日期的問卷是否已完成"""
         survey = self.get_survey(user_id, diary_date)
         return survey is not None and survey.completed
 
     def get_or_create_summary(self, user_id: int, diary_date: str) -> SurveyRecord:
-                """取得或建立當日問卷摘要"""
+        """取得或建立當日問卷摘要"""
         from zoneinfo import ZoneInfo
         import config as _cfg
         tz = ZoneInfo(_cfg.TIMEZONE)
         survey = self.get_survey(user_id, diary_date)
         if survey is None:
-                        created_at = datetime.now(tz).isoformat()
+            created_at = datetime.now(tz).isoformat()
             self.create_survey(user_id, diary_date, created_at)
             survey = self.get_survey(user_id, diary_date)
         return survey
 
     # ── 日記操作 ────────────────────────────────
     def save_diary(self, user_id: int, diary_date: str, content: str,
-                                      created_at: str, uploaded: bool = False) -> int:
-                                                  """儲存生成的日記"""
+                   created_at: str, uploaded: bool = False) -> int:
+        """儲存生成的日記"""
         with self._get_conn() as conn:
-                        cursor = conn.execute(
-                                            "INSERT OR REPLACE INTO generated_diaries "
-                                            "(user_id, diary_date, content, uploaded, created_at) "
-                                            "VALUES (?, ?, ?, ?, ?)",
-                                            (user_id, diary_date, content, int(uploaded), created_at),
-                        )
+            cursor = conn.execute(
+                "INSERT OR REPLACE INTO generated_diaries "
+                "(user_id, diary_date, content, uploaded, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (user_id, diary_date, content, int(uploaded), created_at),
+            )
             return cursor.lastrowid
 
     def get_diary(self, user_id: int, diary_date: str) -> Optional[dict]:
-                """取得指定日期的日記"""
+        """取得指定日期的日記"""
         with self._get_conn() as conn:
-                        row = conn.execute(
-                                            "SELECT * FROM generated_diaries WHERE user_id = ? AND diary_date = ?",
-                                            (user_id, diary_date),
-                        ).fetchone()
+            row = conn.execute(
+                "SELECT * FROM generated_diaries WHERE user_id = ? AND diary_date = ?",
+                (user_id, diary_date),
+            ).fetchone()
             return dict(row) if row else None
 
     def is_diary_generated(self, user_id: int, diary_date: str) -> bool:
-                """確認指定日期的日記是否已產出"""
+        """確認指定日期的日記是否已產出"""
         return self.get_diary(user_id, diary_date) is not None
 
     def mark_diary_uploaded(self, user_id: int, diary_date: str) -> None:
-                """標記日記已上傳至 Google Drive"""
+        """標記日記已上傳至 Google Drive"""
         with self._get_conn() as conn:
-                        conn.execute(
-                                            "UPDATE generated_diaries SET uploaded = 1 "
-                                            "WHERE user_id = ? AND diary_date = ?",
-                                            (user_id, diary_date),
-                        )
+            conn.execute(
+                "UPDATE generated_diaries SET uploaded = 1 "
+                "WHERE user_id = ? AND diary_date = ?",
+                (user_id, diary_date),
+            )
 
     # ── 統計 ──────────────────────────────────────
     def get_all_user_ids(self) -> list[int]:
-                """取得所有曾使用過的 user_id"""
+        """取得所有曾使用過的 user_id"""
         with self._get_conn() as conn:
-                        rows = conn.execute(
-                                            "SELECT DISTINCT user_id FROM entries"
-                        ).fetchall()
+            rows = conn.execute(
+                "SELECT DISTINCT user_id FROM entries"
+            ).fetchall()
             return [r["user_id"] for r in rows]
 
     def get_mood_scores(self, user_id: int, limit: int = 7) -> list[dict]:
-                """取得最近 N 天的心情評分"""
+        """取得最近 N 天的心情評分"""
         with self._get_conn() as conn:
-                        rows = conn.execute(
-                                            "SELECT diary_date, mood_score FROM surveys "
-                                            "WHERE user_id = ? AND mood_score IS NOT NULL "
-                                            "ORDER BY diary_date DESC LIMIT ?",
-                                            (user_id, limit),
-                        ).fetchall()
+            rows = conn.execute(
+                "SELECT diary_date, mood_score FROM surveys "
+                "WHERE user_id = ? AND mood_score IS NOT NULL "
+                "ORDER BY diary_date DESC LIMIT ?",
+                (user_id, limit),
+            ).fetchall()
             return [dict(r) for r in rows]
 
     # ── 設定操作 ──────────────────────────────────
     def get_setting(self, key: str, default: str = "") -> str:
-                """取得設定值"""
+        """取得系統設定"""
         with self._get_conn() as conn:
-                        row = conn.execute(
-                                            "SELECT value FROM settings WHERE key = ?",
-                                            (key,)
-                        ).fetchone()
+            row = conn.execute(
+                "SELECT value FROM settings WHERE key = ?",
+                (key,)
+            ).fetchone()
             return row["value"] if row else default
 
     def set_setting(self, key: str, value: str) -> None:
-                """儲存設定值"""
+        """更新或新增系統設定"""
         with self._get_conn() as conn:
-                        conn.execute(
-                                            "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-                                            (key, value),
-                        )
+            conn.execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+                (key, value),
+            )
 
+# ── 模組層級快捷函式 (提供給 Scheduler 使用) ────────
 
-# ── 模組層級便利函式（供 scheduler_service 等直接 import）──────────────
-_db: Optional[Database] = None
-
+_db = None
 
 def _get_db() -> Database:
-        global _db
+    global _db
     if _db is None:
-                _db = Database()
+        _db = Database()
     return _db
 
-
 def get_all_user_ids() -> list[int]:
-        """取得所有曾使用過的 user_id（模組層級快捷函式）"""
+    """取得所有曾使用過的 user_id（模組層級快捷函式）"""
     return _get_db().get_all_user_ids()
 
-
 def is_questionnaire_complete(user_id: int, diary_date: str) -> bool:
-        """確認指定日期的問卷是否已完成（模組層級快捷函式）"""
+    """確認指定日期的問卷是否已完成（模組層級快捷函式）"""
     return _get_db().is_questionnaire_complete(user_id, diary_date)
 
-
 def get_or_create_summary(user_id: int, diary_date: str):
-        """取得或建立當日問卷摘要（模組層級快捷函式）"""
+    """取得或建立當日問卷摘要（模組層級快捷函式）"""
     return _get_db().get_or_create_summary(user_id, diary_date)
 
-
 def update_summary_field(user_id: int, diary_date: str, field: str, value) -> None:
-        """更新問卷欄位（模組層級快捷函式）"""
+    """更新問卷欄位（模組層級快捷函式）"""
     return _get_db().update_summary_field(user_id, diary_date, field, value)
 
-
 def is_diary_generated(user_id: int, diary_date: str) -> bool:
-        """確認指定日期的日記是否已產出（模組層級快捷函式）"""
+    """確認指定日期的日記是否已產出（模組層級快捷函式）"""
     return _get_db().is_diary_generated(user_id, diary_date)
+
