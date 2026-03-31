@@ -11,7 +11,7 @@ from bot.config import TELEGRAM_BOT_TOKEN
 from bot.utils.logger import setup_logger
 from bot.utils.error_handler import error_handler
 from bot.handlers.command_handler import cmd_start, cmd_today
-from bot.handlers.message_handler import handle_text_message, handle_unsupported
+from bot.handlers.message_handler import handle_text_message, handle_voice_message, handle_unsupported
 
 # 初始化 logger
 setup_logger()
@@ -35,6 +35,9 @@ def main():
 
     # 註冊文字訊息處理（排除指令）
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_message))
+
+    # 註冊語音訊息處理
+    app.add_handler(MessageHandler(filters.VOICE, handle_voice_message))
 
     # 註冊不支援的訊息類型處理（圖片、貼圖、影片、文件等）
     app.add_handler(MessageHandler(
