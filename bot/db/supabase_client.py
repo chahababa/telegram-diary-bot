@@ -32,3 +32,44 @@ def test_connection():
         logger.error(f"Supabase 連線失敗: {e}")
         print(f"[FAIL] Supabase 連線失敗: {e}")
         return False
+
+
+# === CRUD 函式 ===
+
+def add_entry(date: str, time: str, content: str, source_type: str) -> dict:
+    """新增一筆 diary_entry"""
+    client = get_client()
+    data = {
+        "date": date,
+        "time": time,
+        "content": content,
+        "source_type": source_type,
+    }
+    result = client.table("diary_entries").insert(data).execute()
+    logger.info(f"已新增 entry: {date} {time} ({source_type})")
+    return result.data[0]
+
+
+def get_entries_by_date(date: str) -> list:
+    """取得指定日期的所有 entries，按時間排序"""
+    client = get_client()
+    result = (
+        client.table("diary_entries")
+        .select("*")
+        .eq("date", date)
+        .order("time")
+        .execute()
+    )
+    return result.data
+
+
+def count_entries_by_date(date: str) -> int:
+    """計算指定日期的 entry 數量"""
+    client = get_client()
+    result = (
+        client.table("diary_entries")
+        .select("id", count="exact")
+        .eq("date", date)
+        .execute()
+    )
+    return result.count
