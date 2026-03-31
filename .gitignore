@@ -1,0 +1,10 @@
+.env
+venv/
+venv_win/
+__pycache__/
+*.pyc
+*.db
+credentials.json
+*.ogg
+bot.log
+local_diaries/
