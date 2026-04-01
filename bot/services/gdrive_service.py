@@ -1,6 +1,7 @@
 """Google Drive 上傳模組（OAuth 2.0 桌面認證）"""
 
 import os
+import json
 import logging
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -21,20 +22,28 @@ def _get_drive_service():
     """建立 Google Drive API client（OAuth 2.0）"""
     creds = None
 
-    # 嘗試從 token.json 讀取已儲存的認證
-    if os.path.exists(TOKEN_FILE):
+    # 優先從環境變數讀取 token（雲端部署用）
+    token_env = os.getenv("GOOGLE_OAUTH_TOKEN_JSON")
+    if token_env:
+        creds = Credentials.from_authorized_user_info(json.loads(token_env), SCOPES)
+    elif os.path.exists(TOKEN_FILE):
         creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
 
-    # 如果沒有有效的認證，執行授權流程
+    # 如果沒有有效的認證，嘗試重新整理或執行授權流程
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
-        else:
+            # 更新本地 token 檔
+            if not token_env and os.path.exists(TOKEN_FILE):
+                with open(TOKEN_FILE, "w") as token:
+                    token.write(creds.to_json())
+        elif os.path.exists(OAUTH_CRED_FILE):
             flow = InstalledAppFlow.from_client_secrets_file(OAUTH_CRED_FILE, SCOPES)
             creds = flow.run_local_server(port=0)
-        # 儲存認證供下次使用
-        with open(TOKEN_FILE, "w") as token:
-            token.write(creds.to_json())
+            with open(TOKEN_FILE, "w") as token:
+                token.write(creds.to_json())
+        else:
+            raise FileNotFoundError("找不到 Google OAuth 認證，請設定 GOOGLE_OAUTH_TOKEN_JSON 環境變數或放置 oauth_credentials.json")
         logger.info("Google OAuth 認證已更新")
 
     return build("drive", "v3", credentials=creds)
