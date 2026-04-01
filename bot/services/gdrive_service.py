@@ -25,14 +25,23 @@ def _get_drive_service():
     # 優先從環境變數讀取 token（雲端部署用）
     token_env = os.getenv("GOOGLE_OAUTH_TOKEN_JSON")
     if token_env:
-        creds = Credentials.from_authorized_user_info(json.loads(token_env), SCOPES)
+        logger.info("使用環境變數 GOOGLE_OAUTH_TOKEN_JSON 認證")
+        try:
+            token_data = json.loads(token_env)
+            creds = Credentials.from_authorized_user_info(token_data, SCOPES)
+            logger.info(f"Token 載入成功, expired={creds.expired}, has_refresh={bool(creds.refresh_token)}")
+        except Exception as e:
+            logger.error(f"解析 GOOGLE_OAUTH_TOKEN_JSON 失敗: {e}")
     elif os.path.exists(TOKEN_FILE):
+        logger.info("使用本地 token.json 認證")
         creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
 
     # 如果沒有有效的認證，嘗試重新整理或執行授權流程
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
+            logger.info("Token 已過期，正在重新整理...")
             creds.refresh(Request())
+            logger.info("Token 重新整理成功")
             # 更新本地 token 檔
             if not token_env and os.path.exists(TOKEN_FILE):
                 with open(TOKEN_FILE, "w") as token:
