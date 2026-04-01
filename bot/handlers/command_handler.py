@@ -8,6 +8,7 @@ from telegram.ext import ContextTypes
 from bot.config import TIMEZONE
 from bot.db import supabase_client as db
 from bot.services.diary_service import generate_diary
+from bot.handlers.questionnaire_handler import start_questionnaire, is_questionnaire_active
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +21,7 @@ WELCOME_MESSAGE = """👋 嗨！我是你的日記助理。
 
 📌 可用指令：
 /today — 查看今天的紀錄
+/survey — 填寫每日回顧問卷
 /score — 設定心情分數
 /diary — 手動產出日記
 /status — 查看今日狀態"""
@@ -161,3 +163,22 @@ async def cmd_diary(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     else:
         filepath = await save_diary_locally(today, diary)
         await update.message.reply_text(f"⚠️ Google Drive 上傳失敗，日記已暫存本地：{filepath}")
+
+
+async def cmd_survey(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """處理 /survey 指令：手動觸發問卷"""
+    if is_questionnaire_active(context):
+        await update.message.reply_text("📋 問卷已經在進行中，請繼續回答。")
+        return
+
+    today = datetime.now(tz).strftime("%Y-%m-%d")
+
+    # 檢查今天是否已完成問卷
+    if db.is_questionnaire_complete(today):
+        await update.message.reply_text("✅ 今天的問卷已經完成囉！")
+        return
+
+    # 啟動問卷
+    q_data = context.application.bot_data.setdefault("questionnaire", {})
+    await start_questionnaire(context.bot, update.effective_chat.id, q_data)
+    logger.info(f"使用者手動觸發問卷: {today}")
