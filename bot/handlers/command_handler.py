@@ -1,4 +1,4 @@
-"""指令處理模組：/start, /today"""
+"""指令處理模組：/start, /today, /score, /status"""
 
 import logging
 from datetime import datetime
@@ -48,5 +48,85 @@ async def cmd_today(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if len(content) > 100:
             content = content[:100] + "..."
         lines.append(f"{i}. {icon} [{time_str}] {content}")
+
+    await update.message.reply_text("\n".join(lines))
+
+
+async def cmd_score(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """處理 /score 指令：設定心情分數（-2 到 2）"""
+    today = datetime.now(tz).strftime("%Y-%m-%d")
+
+    if not context.args:
+        await update.message.reply_text("📌 使用方式：/score <分數>\n分數範圍：-2（很差）到 2（很好）")
+        return
+
+    try:
+        score = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text("⚠️ 請輸入整數，範圍 -2 到 2。")
+        return
+
+    if score < -2 or score > 2:
+        await update.message.reply_text("⚠️ 分數範圍是 -2 到 2，請重新輸入。")
+        return
+
+    db.get_or_create_summary(today)
+    db.update_summary_field(today, "mood_score", score)
+
+    score_labels = {-2: "😢 很差", -1: "😕 不太好", 0: "😐 普通", 1: "🙂 不錯", 2: "😄 很好"}
+    label = score_labels.get(score, str(score))
+    await update.message.reply_text(f"🎭 今日心情分數已設定為：{label}")
+    logger.info(f"心情分數已更新: {today} = {score}")
+
+
+async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """處理 /status 指令：顯示今日狀態摘要"""
+    today = datetime.now(tz).strftime("%Y-%m-%d")
+
+    # 紀錄筆數
+    entries = db.get_entries_by_date(today)
+    text_count = sum(1 for e in entries if e["source_type"] == "text")
+    voice_count = sum(1 for e in entries if e["source_type"] == "voice")
+
+    # 問卷與心情
+    summary = db.get_summary(today)
+    settings = db.get_settings()
+    template = settings.get("questionnaire_template", [])
+    total_questions = len(template)
+
+    if summary:
+        q_step = summary.get("questionnaire_step", 0)
+        mood = summary.get("mood_score")
+        diary_done = bool(summary.get("diary_output"))
+        uploaded = summary.get("diary_uploaded", False)
+    else:
+        q_step = 0
+        mood = None
+        diary_done = False
+        uploaded = False
+
+    # 組合狀態訊息
+    score_labels = {-2: "😢 很差", -1: "😕 不太好", 0: "😐 普通", 1: "🙂 不錯", 2: "😄 很好"}
+    mood_str = score_labels.get(mood, "未設定") if mood is not None else "未設定"
+
+    if q_step >= total_questions and total_questions > 0:
+        q_status = "✅ 已完成"
+    elif q_step > 0:
+        q_status = f"⏳ 進行中（{q_step}/{total_questions}）"
+    else:
+        q_status = "⬜ 未開始"
+
+    diary_str = "✅ 已產出" if diary_done else "⬜ 未產出"
+    upload_str = "✅ 已上傳" if uploaded else "⬜ 未上傳"
+
+    lines = [
+        f"📊 {today} 狀態摘要\n",
+        f"📝 文字紀錄：{text_count} 筆",
+        f"🎤 語音紀錄：{voice_count} 筆",
+        f"📋 問卷進度：{q_status}",
+        f"🎭 心情分數：{mood_str}",
+        f"📖 日記產出：{diary_str}",
+        f"☁️ 雲端上傳：{upload_str}",
+    ]
 
     await update.message.reply_text("\n".join(lines))

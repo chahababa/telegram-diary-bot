@@ -16,6 +16,17 @@ tz = zoneinfo.ZoneInfo(TIMEZONE)
 
 async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """處理文字訊息：存入 Supabase 並回覆確認"""
+    from bot.handlers.questionnaire_handler import is_questionnaire_active, handle_questionnaire_answer
+    from bot.services.scheduler_service import set_chat_id
+
+    # 記住 chat_id 供排程器使用
+    set_chat_id(update.effective_chat.id)
+
+    # 若問卷進行中，交由問卷處理（不記錄為一般 entry）
+    if is_questionnaire_active(context):
+        await handle_questionnaire_answer(update, context)
+        return
+
     now = datetime.now(tz)
     date_str = now.strftime("%Y-%m-%d")
     time_str = now.strftime("%H:%M:%S")

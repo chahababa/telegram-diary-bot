@@ -1,5 +1,6 @@
 """Supabase 連線與 CRUD 模組"""
 
+import json
 import logging
 from supabase import create_client, Client
 from bot.config import SUPABASE_URL, SUPABASE_KEY
@@ -73,3 +74,80 @@ def count_entries_by_date(date: str) -> int:
         .execute()
     )
     return result.count
+
+
+# === bot_settings ===
+
+def get_settings() -> dict:
+    """讀取 bot_settings（id=1）"""
+    client = get_client()
+    result = client.table("bot_settings").select("*").eq("id", 1).execute()
+    if result.data:
+        return result.data[0]
+    return {}
+
+
+# === daily_summaries ===
+
+def get_or_create_summary(date: str) -> dict:
+    """取得或建立當日 daily_summary"""
+    client = get_client()
+    result = client.table("daily_summaries").select("*").eq("date", date).execute()
+    if result.data:
+        return result.data[0]
+    # 建立新的 summary
+    new_data = {"date": date, "questionnaire_answers": {}, "questionnaire_step": 0}
+    result = client.table("daily_summaries").insert(new_data).execute()
+    logger.info(f"已建立 daily_summary: {date}")
+    return result.data[0]
+
+
+def update_summary_field(date: str, field: str, value) -> dict:
+    """更新 daily_summary 的指定欄位"""
+    client = get_client()
+    result = (
+        client.table("daily_summaries")
+        .update({field: value})
+        .eq("date", date)
+        .execute()
+    )
+    logger.info(f"已更新 daily_summary {date}.{field}")
+    return result.data[0] if result.data else {}
+
+
+def get_summary(date: str) -> dict | None:
+    """取得當日 summary，不存在則回傳 None"""
+    client = get_client()
+    result = client.table("daily_summaries").select("*").eq("date", date).execute()
+    return result.data[0] if result.data else None
+
+
+def is_questionnaire_complete(date: str) -> bool:
+    """判斷問卷是否已完成"""
+    summary = get_summary(date)
+    if not summary:
+        return False
+    settings = get_settings()
+    template = settings.get("questionnaire_template", [])
+    return summary.get("questionnaire_step", 0) >= len(template)
+
+
+# === scheduler_state ===
+
+def get_scheduler_state() -> dict:
+    """讀取排程狀態（id=1）"""
+    client = get_client()
+    result = client.table("scheduler_state").select("*").eq("id", 1).execute()
+    if result.data:
+        return result.data[0]
+    # 若不存在，建立初始狀態
+    new_data = {"id": 1}
+    result = client.table("scheduler_state").insert(new_data).execute()
+    return result.data[0]
+
+
+def update_scheduler_state(field: str, value) -> None:
+    """更新排程狀態的指定欄位"""
+    client = get_client()
+    client.table("scheduler_state").update({field: value}).eq("id", 1).execute()
+    logger.info(f"已更新 scheduler_state.{field} = {value}")
