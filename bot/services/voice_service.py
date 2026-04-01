@@ -5,12 +5,25 @@ import logging
 import tempfile
 from openai import OpenAI
 from bot.config import OPENAI_API_KEY
+from bot.db import supabase_client as db
 
 logger = logging.getLogger(__name__)
 
 _openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
 MAX_RETRIES = 2
+
+
+def _get_vocabulary_prompt() -> str:
+    """從 bot_settings 讀取常用字清單，組成 Whisper prompt"""
+    try:
+        settings = db.get_settings()
+        vocab = settings.get("custom_vocabulary") or []
+        if vocab:
+            return "常用詞彙：" + "、".join(vocab)
+    except Exception as e:
+        logger.warning(f"讀取常用字清單失敗: {e}")
+    return ""
 
 
 async def download_and_transcribe(voice_file, bot) -> str:
@@ -25,16 +38,22 @@ async def download_and_transcribe(voice_file, bot) -> str:
         await file.download_to_drive(ogg_path)
         logger.info(f"語音檔已下載: {ogg_path}")
 
+        # 讀取常用字清單作為 Whisper prompt
+        vocab_prompt = _get_vocabulary_prompt()
+
         # 呼叫 Whisper API，含重試機制
         last_error = None
         for attempt in range(1, MAX_RETRIES + 1):
             try:
                 with open(ogg_path, "rb") as audio_file:
-                    transcript = _openai_client.audio.transcriptions.create(
-                        model="whisper-1",
-                        file=audio_file,
-                        language="zh",
-                    )
+                    kwargs = {
+                        "model": "whisper-1",
+                        "file": audio_file,
+                        "language": "zh",
+                    }
+                    if vocab_prompt:
+                        kwargs["prompt"] = vocab_prompt
+                    transcript = _openai_client.audio.transcriptions.create(**kwargs)
                 logger.info(f"語音轉寫成功（第 {attempt} 次嘗試）")
                 return transcript.text
             except Exception as e:
