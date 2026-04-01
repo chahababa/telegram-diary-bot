@@ -205,6 +205,16 @@ async def check_and_generate_diary(context) -> None:
             await context.bot.send_message(chat_id=chat_id, text="📖 昨日日記已自動產出：")
             for i in range(0, len(diary), 4000):
                 await context.bot.send_message(chat_id=chat_id, text=diary[i:i + 4000])
+
+        # 上傳至 Google Drive
+        from bot.services.gdrive_service import upload_diary, save_diary_locally
+        file_id = await upload_diary(yesterday, diary)
+        if file_id:
+            db.update_summary_field(yesterday, "diary_uploaded", True)
+            await context.bot.send_message(chat_id=chat_id, text="☁️ 日記已上傳至 Google Drive。")
+        else:
+            filepath = await save_diary_locally(yesterday, diary)
+            await context.bot.send_message(chat_id=chat_id, text=f"⚠️ Google Drive 上傳失敗，日記已暫存本地：{filepath}")
     else:
         await context.bot.send_message(chat_id=chat_id, text="📭 昨天沒有任何紀錄，未產出日記。")
 

@@ -134,7 +134,9 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 
 
 async def cmd_diary(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """處理 /diary 指令：手動觸發日記產出"""
+    """處理 /diary 指令：手動觸發日記產出 + 上傳 Google Drive"""
+    from bot.services.gdrive_service import upload_diary, save_diary_locally
+
     today = datetime.now(tz).strftime("%Y-%m-%d")
     await update.message.reply_text("📖 正在產出日記，請稍候...")
 
@@ -150,3 +152,12 @@ async def cmd_diary(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     else:
         for i in range(0, len(diary), 4000):
             await update.message.reply_text(diary[i:i + 4000])
+
+    # 上傳至 Google Drive
+    file_id = await upload_diary(today, diary)
+    if file_id:
+        db.update_summary_field(today, "diary_uploaded", True)
+        await update.message.reply_text("☁️ 日記已上傳至 Google Drive。")
+    else:
+        filepath = await save_diary_locally(today, diary)
+        await update.message.reply_text(f"⚠️ Google Drive 上傳失敗，日記已暫存本地：{filepath}")
