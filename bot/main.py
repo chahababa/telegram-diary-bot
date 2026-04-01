@@ -10,7 +10,7 @@ from telegram.ext import (
 from bot.config import TELEGRAM_BOT_TOKEN
 from bot.utils.logger import setup_logger
 from bot.utils.error_handler import error_handler
-from bot.handlers.command_handler import cmd_start, cmd_today, cmd_score, cmd_status
+from bot.handlers.command_handler import cmd_start, cmd_today, cmd_score, cmd_status, cmd_diary
 from bot.handlers.message_handler import (
     handle_text_message,
     handle_voice_message,
@@ -46,6 +46,7 @@ def main():
     app.add_handler(CommandHandler("today", cmd_today))
     app.add_handler(CommandHandler("score", cmd_score))
     app.add_handler(CommandHandler("status", cmd_status))
+    app.add_handler(CommandHandler("diary", cmd_diary))
     app.add_handler(CommandHandler("cancel", cancel_questionnaire))
 
     # 註冊文字訊息處理（排除指令）

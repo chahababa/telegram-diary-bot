@@ -1,7 +1,7 @@
 """排程管理模組：定時提醒、問卷觸發、自動結算"""
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 import zoneinfo
 from telegram.ext import Application
 from bot.config import TIMEZONE
@@ -57,6 +57,14 @@ def init_scheduler(app: Application) -> None:
         interval=60,
         first=20,
         name="questionnaire_timeout_check",
+    )
+
+    # 每分鐘檢查一次日記產出
+    job_queue.run_repeating(
+        check_and_generate_diary,
+        interval=60,
+        first=25,
+        name="diary_check",
     )
 
     logger.info("排程器已初始化")
@@ -159,3 +167,46 @@ async def check_questionnaire_timeout(context) -> None:
     from bot.handlers.questionnaire_handler import auto_close_questionnaire
     await auto_close_questionnaire(context.bot, chat_id, q_data)
     logger.info("問卷超時自動結算")
+
+
+async def check_and_generate_diary(context) -> None:
+    """檢查是否需要自動產出日記（凌晨指定時間）"""
+    chat_id = get_chat_id()
+    if not chat_id:
+        return
+
+    now = datetime.now(tz)
+
+    # 從 Supabase 讀取最新設定
+    settings = db.get_settings()
+    diary_hour = settings.get("diary_generation_hour", 0)
+
+    if now.hour != diary_hour:
+        return
+
+    # 產出前一天的日記
+    yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+
+    # 檢查是否已產出
+    state = db.get_scheduler_state()
+    last_generated = state.get("last_diary_generated")
+    if last_generated == yesterday:
+        return
+
+    from bot.services.diary_service import generate_diary
+
+    diary = await generate_diary(yesterday)
+
+    if diary:
+        # 分段傳送
+        if len(diary) <= 4000:
+            await context.bot.send_message(chat_id=chat_id, text=f"📖 昨日日記已自動產出：\n\n{diary}")
+        else:
+            await context.bot.send_message(chat_id=chat_id, text="📖 昨日日記已自動產出：")
+            for i in range(0, len(diary), 4000):
+                await context.bot.send_message(chat_id=chat_id, text=diary[i:i + 4000])
+    else:
+        await context.bot.send_message(chat_id=chat_id, text="📭 昨天沒有任何紀錄，未產出日記。")
+
+    db.update_scheduler_state("last_diary_generated", yesterday)
+    logger.info(f"已自動產出 {yesterday} 日記")

@@ -1,4 +1,4 @@
-"""指令處理模組：/start, /today, /score, /status"""
+"""指令處理模組：/start, /today, /score, /status, /diary"""
 
 import logging
 from datetime import datetime
@@ -7,6 +7,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from bot.config import TIMEZONE
 from bot.db import supabase_client as db
+from bot.services.diary_service import generate_diary
 
 logger = logging.getLogger(__name__)
 
@@ -130,3 +131,22 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     ]
 
     await update.message.reply_text("\n".join(lines))
+
+
+async def cmd_diary(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """處理 /diary 指令：手動觸發日記產出"""
+    today = datetime.now(tz).strftime("%Y-%m-%d")
+    await update.message.reply_text("📖 正在產出日記，請稍候...")
+
+    diary = await generate_diary(today)
+
+    if not diary:
+        await update.message.reply_text("📭 今天沒有任何紀錄，無法產出日記。")
+        return
+
+    # 日記超過 4096 字元時分段傳送
+    if len(diary) <= 4000:
+        await update.message.reply_text(diary)
+    else:
+        for i in range(0, len(diary), 4000):
+            await update.message.reply_text(diary[i:i + 4000])
