@@ -51,9 +51,6 @@ def _build_simple_diary(date: str, entries: list, summary: dict | None) -> str:
         answers = summary.get("questionnaire_answers", {}) or {}
         mood = summary.get("mood_score")
 
-        lines.append("\n#### ⭐ 今天最重要的事")
-        lines.append(answers.get("most_important", "未記錄"))
-
         lines.append("\n#### 🙏 今日感恩")
         gratitude = answers.get("gratitude")
         if gratitude:
@@ -69,13 +66,16 @@ def _build_simple_diary(date: str, entries: list, summary: dict | None) -> str:
         score_labels = {-2: "😢 很差 (-2)", -1: "😕 不太好 (-1)", 0: "😐 普通 (0)", 1: "🙂 不錯 (1)", 2: "😄 很好 (2)"}
         lines.append(score_labels.get(mood, "未記錄") if mood is not None else "未記錄")
 
-        lines.append("\n#### 📝 補充")
-        lines.append(answers.get("supplement", "無"))
+        lines.append("\n#### 💡 今日學習與想法")
+        lines.append(answers.get("learning", "未記錄"))
+
+        lines.append("\n#### ✨ 值得記錄的時刻")
+        lines.append(answers.get("highlight", "未記錄"))
     else:
-        lines.append("\n#### ⭐ 今天最重要的事\n未記錄")
         lines.append("\n#### 🙏 今日感恩\n未記錄")
         lines.append("\n#### 🎭 心情指數\n未記錄")
-        lines.append("\n#### 📝 補充\n無")
+        lines.append("\n#### 💡 今日學習與想法\n未記錄")
+        lines.append("\n#### ✨ 值得記錄的時刻\n未記錄")
 
     return "\n".join(lines)
 
@@ -98,8 +98,6 @@ def _build_gpt_user_message(date: str, entries: list, summary: dict | None) -> s
         answers = summary.get("questionnaire_answers", {}) or {}
         mood = summary.get("mood_score")
 
-        parts.append(f"- 今天最重要的一件事：{answers.get('most_important', '未回答')}")
-
         gratitude = answers.get("gratitude")
         if gratitude:
             if isinstance(gratitude, list):
@@ -114,7 +112,8 @@ def _build_gpt_user_message(date: str, entries: list, summary: dict | None) -> s
         else:
             parts.append("- 心情分數：未設定")
 
-        parts.append(f"- 補充：{answers.get('supplement', '未回答')}")
+        parts.append(f"- 今天的學習或想法：{answers.get('learning', '未回答')}")
+        parts.append(f"- 值得記錄的時刻：{answers.get('highlight', '未回答')}")
     else:
         parts.append("（未完成問卷）")
 
