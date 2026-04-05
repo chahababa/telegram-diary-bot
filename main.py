@@ -12,7 +12,9 @@ from telegram.ext import ApplicationBuilder
 
 from config import TELEGRAM_BOT_TOKEN, validate_config, LOCAL_BACKUP_DIR
 from handlers.admin_handlers import register_admin_handlers
+from handlers.backdiary_handler import get_backdiary_handler
 from handlers.command_handlers import register_command_handlers
+from handlers.editdiary_handler import get_editdiary_handler
 from handlers.message_handlers import register_message_handlers
 from handlers.survey_handlers import SurveyManager
 from models.database import Database
@@ -43,6 +45,8 @@ async def post_init(app):
         BotCommand("today", "查看今天的記錄數量"),
         BotCommand("score", "查看近 7 天心情趨勢"),
         BotCommand("diary", "手動產出今天的日記"),
+        BotCommand("backdiary", "📅 補記過去日期的日記"),
+        BotCommand("editdiary", "✏️ 調整過去日期的日記"),
         BotCommand("status", "查看 Bot 運作狀態"),
         BotCommand("survey", "手動開始問卷"),
         BotCommand("admin", "管理員設定選單"),
@@ -97,6 +101,8 @@ def main():
 
     # 註冊處理器（順序重要：ConversationHandler 需優先）
     app.add_handler(survey_manager.get_conversation_handler(), group=0)
+    app.add_handler(get_backdiary_handler(), group=0)
+    app.add_handler(get_editdiary_handler(), group=0)
     register_command_handlers(app)
     register_admin_handlers(app)
     register_message_handlers(app)
