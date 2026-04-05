@@ -94,6 +94,15 @@ class Database:
                     value TEXT NOT NULL
                 );
                 
+                CREATE TABLE IF NOT EXISTS diary_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    diary_date TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    replaced_at TEXT NOT NULL
+                );
+
                 CREATE INDEX IF NOT EXISTS idx_entries_user_date ON entries(user_id, diary_date);
                 CREATE INDEX IF NOT EXISTS idx_surveys_user_date ON surveys(user_id, diary_date);
             """)
@@ -272,6 +281,34 @@ class Database:
         """確認指定日期的日記是否已產出"""
         return self.get_diary(user_id, diary_date) is not None
 
+    def save_diary_to_history(self, user_id: int, diary_date: str) -> bool:
+        """將目前的日記版本存入歷史記錄（覆寫前調用）"""
+        existing = self.get_diary(user_id, diary_date)
+        if not existing:
+            return False
+        from zoneinfo import ZoneInfo
+        import config as _cfg
+        tz = ZoneInfo(_cfg.TIMEZONE)
+        replaced_at = datetime.now(tz).isoformat()
+        with self._get_conn() as conn:
+            conn.execute(
+                "INSERT INTO diary_history (user_id, diary_date, content, created_at, replaced_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (user_id, diary_date, existing["content"], existing["created_at"], replaced_at),
+            )
+        logger.info(f"已將 {diary_date} 的日記存入歷史記錄")
+        return True
+
+    def get_diary_dates_with_diary(self, user_id: int, limit: int = 14) -> list[str]:
+        """取得有生成日記的日期列表（由新到舊）"""
+        with self._get_conn() as conn:
+            rows = conn.execute(
+                "SELECT diary_date FROM generated_diaries WHERE user_id = ? "
+                "ORDER BY diary_date DESC LIMIT ?",
+                (user_id, limit),
+            ).fetchall()
+            return [r["diary_date"] for r in rows]
+
     def mark_diary_uploaded(self, user_id: int, diary_date: str) -> None:
         """標記日記已上傳至 Google Drive"""
         with self._get_conn() as conn:
@@ -348,4 +385,3 @@ def update_summary_field(user_id: int, diary_date: str, field: str, value) -> No
 def is_diary_generated(user_id: int, diary_date: str) -> bool:
     """確認指定日期的日記是否已產出（模組層級快捷函式）"""
     return _get_db().is_diary_generated(user_id, diary_date)
-
