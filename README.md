@@ -12,6 +12,7 @@
 - **23:00 結算問卷**：最重要的事 → 感恩 3 件 → 心情評分 → 補充
 - **00:00 自動日記**：AI (GPT-4o) 彙整成 Markdown，回傳 Telegram + 上傳 Google Drive
 - **管理員指令**：在 Telegram 裡直接修改設定，不需要改程式碼
+- **補記功能**：可補記過去任意日期的記錄，並重新產出日記
 
 ## 安裝
 
@@ -28,12 +29,14 @@ pip install -r requirements.txt
 ## 設定
 
 1. 複製 `.env.example` 為 `.env`，填入你的 API 金鑰：
-   ```
-   TELEGRAM_BOT_TOKEN=你的Telegram Bot Token
-   OPENAI_API_KEY=你的OpenAI API Key
-   GOOGLE_DRIVE_FOLDER_ID=Google Drive 資料夾 ID（選用）
-   GOOGLE_CREDENTIALS_FILE=credentials.json（選用）
-   ```
+
+```
+TELEGRAM_BOT_TOKEN=你的Telegram Bot Token
+OPENAI_API_KEY=你的OpenAI API Key
+GOOGLE_DRIVE_FOLDER_ID=Google Drive 資料夾 ID（選用）
+GOOGLE_CREDENTIALS_FILE=credentials.json（選用）
+```
+
 2. Google Drive 上傳為選用功能，不設定的話日記會自動備份到本地 `backup_diaries/` 資料夾
 
 ## 啟動
@@ -50,8 +53,24 @@ python main.py
 | `/today` | 查看今天的記錄數量 |
 | `/score` | 查看近 7 天心情趨勢 |
 | `/diary` | 手動產出今天的日記 |
+| `/diary 2026-04-02` | 補記並產出指定日期的日記 |
+| `/add 2026-04-03 內容` | 補記指定日期的一則記錄 |
 | `/status` | 查看 Bot 運作狀態 |
 | `/survey` | 手動開始問卷 |
+
+### 補記說明
+
+如果某天忘記記日記，或想回頭補充，可以這樣做：
+
+1. 用 `/add` 補記那天的內容（可以多次補記）：
+   ```
+   /add 2026-04-02 今天去爬山，天氣很好
+   /add 2026-04-02 下午和老朋友喝咖啡
+   ```
+2. 用 `/diary` 加上日期重新產出那天的日記：
+   ```
+   /diary 2026-04-02
+   ```
 
 ## 管理員指令
 
@@ -74,7 +93,7 @@ python main.py
 目前部署在 [Zeabur](https://zeabur.com)（東京伺服器），連結 GitHub 後會自動偵測更新並重新部署。
 
 ```
-Procfile:    worker: python main.py
+Procfile: worker: python main.py
 runtime.txt: python-3.11.11
 ```
 
