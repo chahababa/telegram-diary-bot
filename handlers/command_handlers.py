@@ -151,35 +151,48 @@ async def cmd_diary(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # 生成日記
-    diary_content = await ai.generate_diary(diary_date, entries, survey, DIARY_TEMPLATE)
+    try:
+        # 生成日記
+        diary_content = await ai.generate_diary(diary_date, entries, survey, DIARY_TEMPLATE)
 
-    # 儲存到資料庫
-    now_str = get_now().isoformat()
-    db.save_diary(user_id, diary_date, diary_content, now_str)
+        # 儲存到資料庫
+        now_str = get_now().isoformat()
+        db.save_diary(user_id, diary_date, diary_content, now_str)
 
-    # 上傳到 Google Drive
-    file_id = await upload_diary(diary_date, diary_content)
-    if file_id:
-        db.mark_diary_uploaded(user_id, diary_date)
-        upload_status = "✅ 已上傳至 Google Drive"
-    elif is_available():
-        upload_status = "⚠️ Google Drive 上傳失敗，已本地暫存"
-    else:
-        upload_status = "ℹ️ Google Drive 未設定，已本地暫存"
+        # 上傳到 Google Drive
+        try:
+            file_id = await upload_diary(diary_date, diary_content)
+        except Exception as upload_err:
+            logger.warning(f"Google Drive 上傳時發生例外：{upload_err}")
+            file_id = None
 
-    # 回傳日記（Telegram 訊息上限 4096 字元，超過需分段）
-    backdated_note = "（補記）" if is_backdated else ""
-    header = f"📔 **{diary_date} 的日記{backdated_note}**\n{upload_status}\n\n"
-    full_msg = header + diary_content
+        if file_id:
+            db.mark_diary_uploaded(user_id, diary_date)
+            upload_status = "✅ 已上傳至 Google Drive"
+        elif is_available():
+            upload_status = "⚠️ Google Drive 上傳失敗，已本地暫存"
+        else:
+            upload_status = "ℹ️ Google Drive 未設定，已本地暫存"
 
-    if len(full_msg) <= 4096:
-        await update.message.reply_text(full_msg, parse_mode="Markdown")
-    else:
-        await update.message.reply_text(header, parse_mode="Markdown")
-        for i in range(0, len(diary_content), 4000):
-            chunk = diary_content[i:i + 4000]
-            await update.message.reply_text(chunk)
+        # 回傳日記（Telegram 訊息上限 4096 字元，超過需分段）
+        backdated_note = "（補記）" if is_backdated else ""
+        header = f"📔 **{diary_date} 的日記{backdated_note}**\n{upload_status}\n\n"
+        full_msg = header + diary_content
+
+        if len(full_msg) <= 4096:
+            await update.message.reply_text(full_msg, parse_mode="Markdown")
+        else:
+            await update.message.reply_text(header, parse_mode="Markdown")
+            for i in range(0, len(diary_content), 4000):
+                chunk = diary_content[i:i + 4000]
+                await update.message.reply_text(chunk)
+
+    except Exception as e:
+        logger.error(f"手動日記產出失敗（使用者 {user_id}，日期 {diary_date}）：{e}")
+        await update.message.reply_text(
+            f"⚠️ 日記產出時發生錯誤：{type(e).__name__}\n\n"
+            "請稍後再試，或聯繫管理員檢查 Bot 日誌。"
+        )
 
 
 async def cmd_add(update: Update, context: ContextTypes.DEFAULT_TYPE):

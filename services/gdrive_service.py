@@ -11,7 +11,7 @@ from pathlib import Path
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
-import asyncio
+import asyncioh
 
 import config
 
@@ -31,7 +31,7 @@ def _get_drive_service():
     else:
         # 本地開發：從檔案讀取
         creds = service_account.Credentials.from_service_account_file(
-            config.GOOGLE_SERVICE_ACCOUNT_JSON,
+            config.GOOGLE_CREDENTIALS_FILE,
             scopes=SCOPES,
         )
     return build("drive", "v3", credentials=creds)
@@ -210,4 +210,5 @@ async def upload_diary_overwrite(date_str: str, diary_content: str, max_retries:
 
 def is_available() -> bool:
     """檢查是否已經設定 Google Drive 相關環境變數"""
-    return bool(config.GOOGLE_CREDENTIALS_JSON and config.GOOGLE_DRIVE_FOLDER_ID)
+    has_credentials = bool(config.GOOGLE_CREDENTIALS_JSON or config.GOOGLE_CREDENTIALS_FILE)
+    return bool(has_credentials and config.GOOGLE_DRIVE_FOLDER_ID)
