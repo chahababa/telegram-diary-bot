@@ -41,6 +41,22 @@ SURVEY_TIMEOUT_MINUTE: int = 50  # 23:50 超時自動結算
 DIARY_GENERATION_HOUR: int = 0   # 00:00 產出日記
 
 
+# === GPT 模型 ===
+GPT_MODEL: str = os.getenv("GPT_MODEL", "gpt-4o")
+
 # === 語音轉文字 ===
 WHISPER_MODEL: str = "whisper-1"
 WHISPER_LANGUAGE: str = "zh"
+
+# === 本地備份 ===
+LOCAL_BACKUP_DIR: str = os.getenv("LOCAL_BACKUP_DIR", str(Path(__file__).parent / "backup_diaries"))
+
+
+def validate_config() -> list[str]:
+    """檢查必要設定是否已填寫"""
+    missing = []
+    if not TELEGRAM_BOT_TOKEN:
+        missing.append("TELEGRAM_BOT_TOKEN")
+    if not OPENAI_API_KEY:
+        missing.append("OPENAI_API_KEY")
+    return missing

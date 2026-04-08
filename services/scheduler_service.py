@@ -196,8 +196,8 @@ async def auto_close_questionnaire():
         if not is_questionnaire_complete(user_id, today):
             try:
                 from models.database import update_summary_field
-                # 將問卷步驟強制設為完成
-                update_summary_field(user_id, today, "questionnaire_step", 4)
+                # 將問卷標記為完成，讓日記產出時能納入已回答的部分
+                update_summary_field(user_id, today, "completed", 1)
 
                 await _bot.send_message(
                     chat_id=user_id,
@@ -286,11 +286,11 @@ def get_now() -> datetime:
 
 def get_diary_date(now_dt: datetime = None) -> str:
     """取得目前的日記歸屬日期
-    如果目前時間在 00:00~04:00 (含) 之間，則歸屬前一天的日記。
+    如果目前時間在 00:00~03:59 之間，則歸屬前一天的日記。
     """
     if now_dt is None:
         now_dt = get_now()
-    if now_dt.hour <= config.DIARY_GENERATION_HOUR:
+    if now_dt.hour < 4:
         return (now_dt - timedelta(days=1)).strftime("%Y-%m-%d")
     return now_dt.strftime("%Y-%m-%d")
 
