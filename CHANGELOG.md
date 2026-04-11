@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-04-11] Sprint 0 — Notion 同步 + 語意搜尋環境建置
+
+### Changes
+
+- `requirements.txt`：新增 `notion-client>=2.2.1` 與 `numpy>=1.26.0`
+- `config.py`：新增 `NOTION_TOKEN` 與 `NOTION_DIARY_DB_ID` 環境變數（預設空字串）
+- `.env.example`：新增 Notion 相關變數說明（`NOTION_TOKEN`、`NOTION_DIARY_DB_ID`）
+- `models/database.py`：新增兩張資料表
+  - `diary_embeddings`：儲存日記向量嵌入（分段）
+  - `notion_sync_log`：記錄 Notion 推送歷史（防止重複建立頁面）
+
 ## [2026-04-10] Deployment Fix & Recovery
 
 ### Summary

@@ -103,6 +103,26 @@ class Database:
                     replaced_at TEXT NOT NULL
                 );
 
+                CREATE TABLE IF NOT EXISTS diary_embeddings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    diary_date TEXT NOT NULL,
+                    chunk_index INTEGER NOT NULL,
+                    content_chunk TEXT NOT NULL,
+                    embedding BLOB NOT NULL,
+                    created_at TEXT NOT NULL,
+                    UNIQUE(user_id, diary_date, chunk_index)
+                );
+
+                CREATE TABLE IF NOT EXISTS notion_sync_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    diary_date TEXT NOT NULL,
+                    notion_page_id TEXT NOT NULL,
+                    synced_at TEXT NOT NULL,
+                    UNIQUE(user_id, diary_date)
+                );
+
                 CREATE INDEX IF NOT EXISTS idx_entries_user_date ON entries(user_id, diary_date);
                 CREATE INDEX IF NOT EXISTS idx_surveys_user_date ON surveys(user_id, diary_date);
             """)

@@ -8,3 +8,5 @@ google-auth>=2.23.0
 google-auth-oauthlib>=1.1.0
 sqlalchemy>=2.0.0
 flask>=3.0.0
+notion-client>=2.2.1
+numpy>=1.26.0

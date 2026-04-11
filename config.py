@@ -58,6 +58,11 @@ WHISPER_LANGUAGE: str = "zh"
 LOCAL_BACKUP_DIR: str = os.getenv("LOCAL_BACKUP_DIR", str(Path(__file__).parent / "backup_diaries"))
 
 
+# === Notion ===
+NOTION_TOKEN: str = os.getenv("NOTION_TOKEN", "")
+NOTION_DIARY_DB_ID: str = os.getenv("NOTION_DIARY_DB_ID", "")
+
+
 def validate_config() -> list[str]:
     """檢查必要設定是否已填寫"""
     missing = []
