@@ -5,6 +5,7 @@ Telegram 日記助理 Bot — 主程式
 
 import logging
 import sys
+import threading
 import warnings
 from pathlib import Path
 
@@ -123,6 +124,17 @@ def main():
     register_command_handlers(app)
     register_admin_handlers(app)
     register_message_handlers(app)
+
+    # 啟動 Web 儀錶板（背景執行緒）
+    from web.routes import create_flask_app
+
+    def _run_flask():
+        flask_app = create_flask_app()
+        flask_app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)
+
+    flask_thread = threading.Thread(target=_run_flask, daemon=True, name="flask-dashboard")
+    flask_thread.start()
+    logger.info("Web 儀錶板已啟動：http://localhost:5000")
 
     # 啟動 Bot
     logger.info("🚀 日記助理 Bot 啟動中...")

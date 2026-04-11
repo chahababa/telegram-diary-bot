@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>日記助理 · 管理儀錶板</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #FFFFFF;
+      --text: #111111;
+      --text-2: #666666;
+      --accent: #0066FF;
+      --border: #E5E5E5;
+      --hover: #F7F7F7;
+      --ok: #00AA44;
+      --warn: #FF6B00;
+      --r: 6px;
+      --r-lg: 10px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', 'Noto Sans TC', 'PingFang TC', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      font-size: 15px;
+    }
+
+    /* ── Navigation ─────────────────────────────────── */
+    .nav {
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      z-index: 100;
+      padding: 0 40px;
+      display: flex;
+      align-items: center;
+      gap: 40px;
+    }
+
+    .nav-brand {
+      font-weight: 600;
+      font-size: 15px;
+      padding: 16px 0;
+      white-space: nowrap;
+      letter-spacing: -0.01em;
+    }
+
+    .nav-tabs { display: flex; gap: 2px; }
+
+    .nav-tab {
+      padding: 16px 14px;
+      cursor: pointer;
+      color: var(--text-2);
+      font-size: 14px;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      transition: color 0.1s, border-color 0.1s;
+      white-space: nowrap;
+      user-select: none;
+    }
+    .nav-tab:hover { color: var(--text); }
+    .nav-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* ── Status bar ──────────────────────────────────── */
+    .status-bar {
+      background: #FAFAFA;
+      border-bottom: 1px solid var(--border);
+      padding: 10px 40px;
+      display: flex;
+      gap: 28px;
+      align-items: center;
+      font-size: 13px;
+      color: var(--text-2);
+    }
+
+    .status-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #CCCCCC;
+      flex-shrink: 0;
+    }
+    .status-dot.on { background: var(--ok); }
+
+    .status-bar strong { color: var(--text); font-weight: 600; }
+
+    /* ── Main ────────────────────────────────────────── */
+    .main {
+      max-width: 880px;
+      margin: 0 auto;
+      padding: 44px 40px;
+    }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Page header ─────────────────────────────────── */
+    .page-title {
+      font-size: 24px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin-bottom: 6px;
+    }
+    .page-desc {
+      color: var(--text-2);
+      font-size: 14px;
+      margin-bottom: 40px;
+    }
+
+    /* ── Cards ───────────────────────────────────────── */
+    .card {
+      border: 1px solid var(--border);
+      border-radius: var(--r-lg);
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    .card-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--text-2);
+      margin-bottom: 20px;
+    }
+
+    /* ── Stats grid ──────────────────────────────────── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      border: 1px solid var(--border);
+      border-radius: var(--r-lg);
+      padding: 20px;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      color: var(--text-2);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 10px;
+    }
+
+    .stat-value {
+      font-size: 32px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      line-height: 1;
+      color: var(--text);
+    }
+
+    .stat-unit {
+      font-size: 13px;
+      color: var(--text-2);
+      margin-top: 4px;
+    }
+
+    /* ── Service rows ────────────────────────────────── */
+    .service-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .service-row:last-child { border-bottom: none; }
+    .service-name { font-size: 14px; font-weight: 500; }
+    .service-desc { font-size: 12px; color: var(--text-2); margin-top: 1px; }
+
+    /* ── Badges ──────────────────────────────────────── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 12px;
+      font-weight: 500;
+      padding: 4px 10px;
+      border-radius: 100px;
+    }
+    .badge-ok  { background: #E6F4ED; color: #1A7A3A; }
+    .badge-warn { background: #FFF4E5; color: #CC5500; }
+    .badge-off  { background: #F5F5F5; color: #888; }
+
+    /* ── Mood chart ──────────────────────────────────── */
+    .mood-chart {
+      display: flex;
+      align-items: flex-end;
+      gap: 10px;
+      height: 100px;
+    }
+
+    .mood-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .mood-bar-area {
+      width: 100%;
+      height: 72px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .mood-emoji { font-size: 13px; line-height: 1; }
+
+    .mood-bar {
+      width: 100%;
+      border-radius: 3px 3px 0 0;
+      min-height: 4px;
+      transition: height 0.3s ease;
+    }
+
+    .mood-date {
+      font-size: 10px;
+      color: var(--text-2);
+      margin-top: 6px;
+      text-align: center;
+    }
+
+    /* ── Feature guide ───────────────────────────────── */
+    .feature-block {
+      margin-bottom: 36px;
+    }
+
+    .feature-block h2 {
+      font-size: 17px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .feature-block p {
+      font-size: 14px;
+      color: #333;
+      margin: 10px 0;
+      line-height: 1.75;
+    }
+
+    .feature-block ul {
+      margin: 8px 0 4px 18px;
+    }
+
+    .feature-block li {
+      font-size: 14px;
+      color: #333;
+      line-height: 2;
+    }
+
+    /* ── Command table ───────────────────────────────── */
+    .cmd-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .cmd-table th {
+      text-align: left;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-2);
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .cmd-table td {
+      padding: 11px 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+      line-height: 1.6;
+    }
+
+    .cmd-table tr:last-child td { border-bottom: none; }
+
+    code {
+      font-family: 'SF Mono', 'Consolas', 'Menlo', monospace;
+      background: #F2F2F2;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+      color: var(--accent);
+    }
+
+    /* ── Settings form ───────────────────────────────── */
+    .form-group { margin-bottom: 22px; }
+    .form-group:last-child { margin-bottom: 0; }
+
+    .form-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 5px;
+    }
+
+    .form-hint {
+      font-size: 12px;
+      color: var(--text-2);
+      margin-bottom: 7px;
+      line-height: 1.5;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 8px 11px;
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      font-size: 14px;
+      font-family: inherit;
+      color: var(--text);
+      background: var(--bg);
+      outline: none;
+      transition: border-color 0.1s;
+    }
+
+    .form-input:focus { border-color: var(--accent); }
+
+    textarea.form-input {
+      min-height: 180px;
+      resize: vertical;
+      font-family: 'SF Mono', 'Consolas', monospace;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    select.form-input { cursor: pointer; }
+
+    /* ── Buttons ─────────────────────────────────────── */
+    .btn {
+      padding: 9px 22px;
+      border-radius: var(--r);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      transition: background 0.1s, opacity 0.1s;
+    }
+
+    .btn-primary { background: var(--accent); color: #FFF; }
+    .btn-primary:hover { background: #0052CC; }
+    .btn-primary:disabled { opacity: 0.45; cursor: default; }
+
+    /* ── Alert ───────────────────────────────────────── */
+    .alert {
+      padding: 11px 14px;
+      border-radius: var(--r);
+      font-size: 13px;
+      margin-bottom: 20px;
+      display: none;
+    }
+    .alert-ok  { background: #E6F4ED; color: #1A7A3A; border: 1px solid #B2DEC4; }
+    .alert-err { background: #FFEBEE; color: #C62828; border: 1px solid #FFCDD2; }
+
+    /* ── Links ───────────────────────────────────────── */
+    .link-card {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 18px 22px;
+      border: 1px solid var(--border);
+      border-radius: var(--r-lg);
+      margin-bottom: 10px;
+      text-decoration: none;
+      color: var(--text);
+      cursor: pointer;
+      transition: background 0.1s, border-color 0.1s;
+    }
+    .link-card:hover { background: var(--hover); border-color: #D0D0D0; }
+
+    .link-icon { font-size: 22px; width: 36px; text-align: center; flex-shrink: 0; }
+    .link-name { font-size: 14px; font-weight: 600; }
+    .link-url  { font-size: 12px; color: var(--text-2); margin-top: 2px; }
+
+    /* ── Toast ───────────────────────────────────────── */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #111;
+      color: #FFF;
+      padding: 11px 18px;
+      border-radius: var(--r-lg);
+      font-size: 13px;
+      opacity: 0;
+      transform: translateY(6px);
+      transition: opacity 0.18s, transform 0.18s;
+      z-index: 999;
+      pointer-events: none;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    /* ── Loading ─────────────────────────────────────── */
+    .loading { color: var(--text-2); font-size: 13px; padding: 8px 0; }
+
+    /* ── Responsive ──────────────────────────────────── */
+    @media (max-width: 640px) {
+      .nav, .status-bar, .main { padding-left: 20px; padding-right: 20px; }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Navigation -->
+<nav class="nav">
+  <div class="nav-brand">📔 日記助理</div>
+  <div class="nav-tabs">
+    <div class="nav-tab active" data-tab="guide">功能說明</div>
+    <div class="nav-tab" data-tab="monitor">狀態監控</div>
+    <div class="nav-tab" data-tab="settings">設定</div>
+    <div class="nav-tab" data-tab="links">快速連結</div>
+  </div>
+</nav>
+
+<!-- Status bar -->
+<div class="status-bar">
+  <span class="status-indicator">
+    <span class="status-dot" id="bot-dot"></span>
+    <span id="bot-status">載入中...</span>
+  </span>
+  <span id="uptime-display"></span>
+  <span>今日記錄：<strong id="today-count">—</strong> 筆</span>
+  <span>累計日記：<strong id="total-diaries">—</strong> 篇</span>
+</div>
+
+<!-- Main -->
+<main class="main">
+
+  <!-- ── 功能說明 ──────────────────────────────────── -->
+  <div class="tab-panel active" id="tab-guide">
+    <p class="page-title">功能說明書</p>
+    <p class="page-desc">了解日記助理的完整功能與使用方式</p>
+
+    <div class="feature-block">
+      <h2>每日記錄</h2>
+      <p>直接在 Telegram 輸入任何文字，Bot 就會自動儲存為當天的記錄。不需要任何指令，隨時想到什麼就記什麼。</p>
+      <ul>
+        <li><strong>文字記錄</strong>：直接輸入文字，Bot 回覆「✅ 已記錄！（今天第 N 筆）」</li>
+        <li><strong>語音記錄</strong>：傳送語音訊息，Bot 用 OpenAI Whisper 自動轉成文字後儲存</li>
+        <li><strong>歸屬日期</strong>：依設定時區，0:00 後的訊息歸屬今天，之前的歸屬昨天</li>
+      </ul>
+    </div>
+
+    <div class="feature-block">
+      <h2>每日問卷</h2>
+      <p>每晚固定時間（預設 23:00）Bot 自動發送問卷，幫你回顧這一天，共 6 個步驟：</p>
+      <ul>
+        <li>今天最重要的一件事</li>
+        <li>感恩的三件事（分三步輸入）</li>
+        <li>心情評分（-2 很差 ～ +2 很好）</li>
+        <li>其他補充</li>
+      </ul>
+      <p>問卷資料會作為 AI 產出日記的重要素材。未完成的問卷在設定時間 +50 分鐘後自動結算。</p>
+    </div>
+
+    <div class="feature-block">
+      <h2>日記自動產出</h2>
+      <p>每天凌晨（預設 00:00），Bot 自動將昨天所有記錄和問卷交給 GPT-4o 整理成結構化 Markdown 日記，並：</p>
+      <ul>
+        <li>在 Telegram 傳送日記全文</li>
+        <li>自動上傳到 Google Drive 指定資料夾備份</li>
+        <li>若 Drive 上傳失敗，改為本地備份（backup_diaries/ 資料夾）</li>
+      </ul>
+    </div>
+
+    <div class="feature-block">
+      <h2>Google Calendar 整合</h2>
+      <p>設定好 Calendar ID 後，使用 <code>/calendar</code> 查看當天行程。需先將日曆共享給 Service Account email（至少「查看所有活動詳情」權限）。</p>
+    </div>
+
+    <div class="feature-block">
+      <h2>日記格式</h2>
+      <p>預設日記包含以下章節（可在「設定」頁面自訂 Markdown 範本）：</p>
+      <ul>
+        <li>時間軸（依序列出所有記錄）</li>
+        <li>去過的地方 ／ 見過的人</li>
+        <li>今天最重要的事</li>
+        <li>感恩三件事</li>
+        <li>心情評分</li>
+        <li>其他筆記</li>
+      </ul>
+    </div>
+
+    <div class="feature-block">
+      <h2>指令說明</h2>
+      <table class="cmd-table">
+        <thead>
+          <tr>
+            <th style="width:200px">指令</th>
+            <th>說明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>/start</code></td><td>開始使用，顯示歡迎訊息與功能介紹</td></tr>
+          <tr><td><code>/today</code></td><td>查看今天已記錄幾筆（文字 + 語音合計）</td></tr>
+          <tr><td><code>/score</code></td><td>查看最近 7 天心情趨勢（Emoji 圖表）</td></tr>
+          <tr><td><code>/diary</code></td><td>手動觸發今天的日記產出（可指定日期）</td></tr>
+          <tr><td><code>/backdiary</code></td><td>補記過去某天的記錄（多步驟引導）</td></tr>
+          <tr><td><code>/editdiary</code></td><td>修改已產出的日記內容</td></tr>
+          <tr><td><code>/calendar</code></td><td>查看今日 Google Calendar 行程</td></tr>
+          <tr><td><code>/survey</code></td><td>手動開始今日問卷</td></tr>
+          <tr><td><code>/status</code></td><td>查看 Bot 運作狀態與排程資訊</td></tr>
+          <tr><td><code>/admin</code></td><td>管理員設定選單（需先執行 /set_admin）</td></tr>
+          <tr><td><code>/set_admin</code></td><td>將自己設為管理員（只能設定一次）</td></tr>
+          <tr><td><code>/set_reminder 9 12 18</code></td><td>修改每日提醒時間（空格分隔）</td></tr>
+          <tr><td><code>/set_survey_time 22</code></td><td>修改問卷開始時間</td></tr>
+          <tr><td><code>/set_template</code></td><td>修改日記 Markdown 範本（後面接新範本內容）</td></tr>
+          <tr><td><code>/show_settings</code></td><td>查看目前所有設定</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── 狀態監控 ──────────────────────────────────── -->
+  <div class="tab-panel" id="tab-monitor">
+    <p class="page-title">狀態監控</p>
+    <p class="page-desc">Bot 運作概況與統計資料</p>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">今日記錄</div>
+        <div class="stat-value" id="s-today">—</div>
+        <div class="stat-unit">筆</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">累計日記</div>
+        <div class="stat-value" id="s-diaries">—</div>
+        <div class="stat-unit">篇</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">累計記錄</div>
+        <div class="stat-value" id="s-entries">—</div>
+        <div class="stat-unit">筆</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">使用者數</div>
+        <div class="stat-value" id="s-users">—</div>
+        <div class="stat-unit">人</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">服務狀態</div>
+      <div class="service-row">
+        <div>
+          <div class="service-name">Telegram Bot</div>
+          <div class="service-desc">與 Telegram 伺服器的連線</div>
+        </div>
+        <span class="badge badge-ok" id="svc-bot">● 運行中</span>
+      </div>
+      <div class="service-row">
+        <div>
+          <div class="service-name">Google Drive</div>
+          <div class="service-desc">日記自動上傳備份</div>
+        </div>
+        <span class="badge badge-off" id="svc-drive">● 載入中</span>
+      </div>
+      <div class="service-row">
+        <div>
+          <div class="service-name">Google Calendar</div>
+          <div class="service-desc">行程讀取（/calendar 指令）</div>
+        </div>
+        <span class="badge badge-off" id="svc-gcal">● 載入中</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">近 7 天心情趨勢</div>
+      <div id="mood-chart-container">
+        <div class="loading">載入中...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 設定 ─────────────────────────────────────── -->
+  <div class="tab-panel" id="tab-settings">
+    <p class="page-title">設定</p>
+    <p class="page-desc">調整 Bot 的運作方式。排程相關設定（時間、時區）需要重啟 Bot 才會生效。</p>
+
+    <div class="alert alert-ok"  id="alert-ok"></div>
+    <div class="alert alert-err" id="alert-err"></div>
+
+    <div class="card">
+      <div class="card-title">排程設定</div>
+      <div class="form-group">
+        <label class="form-label" for="reminder_hours">提醒時間（REMINDER_HOURS）</label>
+        <div class="form-hint">每天幾點提醒記日記，用逗號分隔，範圍 0–23。例：9,12,15,18,21</div>
+        <input class="form-input" type="text" id="reminder_hours" placeholder="9,12,15,18,21">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="survey_hour">問卷開始時間（SURVEY_HOUR）</label>
+        <div class="form-hint">每晚幾點觸發問卷（0–23）</div>
+        <input class="form-input" type="number" id="survey_hour" min="0" max="23" placeholder="23">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="diary_generation_hour">日記產出時間（DIARY_GENERATION_HOUR）</label>
+        <div class="form-hint">每天幾點自動產出昨天的日記（0–23）</div>
+        <input class="form-input" type="number" id="diary_generation_hour" min="0" max="23" placeholder="0">
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">AI 設定</div>
+      <div class="form-group">
+        <label class="form-label" for="gpt_model">GPT 模型（GPT_MODEL）</label>
+        <div class="form-hint">用於產出日記的語言模型</div>
+        <select class="form-input" id="gpt_model">
+          <option value="gpt-4o">gpt-4o（推薦，品質最高）</option>
+          <option value="gpt-4o-mini">gpt-4o-mini（速度較快、成本較低）</option>
+          <option value="gpt-4-turbo">gpt-4-turbo</option>
+          <option value="gpt-3.5-turbo">gpt-3.5-turbo（最省錢）</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="timezone">時區（TIMEZONE）</label>
+        <div class="form-hint">影響所有時間計算。例：Asia/Taipei、Asia/Tokyo、UTC</div>
+        <input class="form-input" type="text" id="timezone" placeholder="Asia/Taipei">
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Google 整合</div>
+      <div class="form-group">
+        <label class="form-label" for="gcal_calendar_id">Google Calendar ID</label>
+        <div class="form-hint">通常是你的 Gmail 信箱。需先將日曆共享給 Service Account（至少查看詳情權限）。</div>
+        <input class="form-input" type="text" id="gcal_calendar_id" placeholder="yourname@gmail.com">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="google_drive_folder_id">Google Drive 資料夾 ID</label>
+        <div class="form-hint">日記備份上傳的目標資料夾。從資料夾連結最後一段取得 ID。</div>
+        <input class="form-input" type="text" id="google_drive_folder_id" placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms">
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">日記範本</div>
+      <div class="form-group">
+        <label class="form-label" for="diary_template">自訂日記 Markdown 範本</label>
+        <div class="form-hint">留空則使用預設範本。支援 GPT system prompt 格式，描述你希望的日記結構與風格。</div>
+        <textarea class="form-input" id="diary_template" placeholder="留空以使用預設範本。&#10;&#10;可以在這裡描述你想要的日記格式，例如：&#10;請用第一人稱、口語化風格撰寫，分為「今天做了什麼」和「今天的感受」兩個段落。"></textarea>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="save-btn" onclick="saveSettings()">儲存設定</button>
+  </div>
+
+  <!-- ── 快速連結 ───────────────────────────────────── -->
+  <div class="tab-panel" id="tab-links">
+    <p class="page-title">快速連結</p>
+    <p class="page-desc">常用服務的連結，點擊即可跳轉</p>
+
+    <a class="link-card" href="https://github.com/chahababa/telegram-diary-bot" target="_blank">
+      <div class="link-icon">📦</div>
+      <div>
+        <div class="link-name">GitHub 原始碼</div>
+        <div class="link-url">github.com/chahababa/telegram-diary-bot</div>
+      </div>
+    </a>
+
+    <div class="link-card" id="drive-link-card" onclick="openDriveLink()">
+      <div class="link-icon">📁</div>
+      <div>
+        <div class="link-name">Google Drive 備份資料夾</div>
+        <div class="link-url" id="drive-url">載入中...</div>
+      </div>
+    </div>
+
+    <a class="link-card" href="https://calendar.google.com" target="_blank">
+      <div class="link-icon">📅</div>
+      <div>
+        <div class="link-name">Google Calendar</div>
+        <div class="link-url">calendar.google.com</div>
+      </div>
+    </a>
+
+    <a class="link-card" href="https://platform.openai.com/usage" target="_blank">
+      <div class="link-icon">🤖</div>
+      <div>
+        <div class="link-name">OpenAI 用量監控</div>
+        <div class="link-url">platform.openai.com/usage</div>
+      </div>
+    </a>
+  </div>
+
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Tab 切換 ────────────────────────────────────────────
+document.querySelectorAll('.nav-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    const target = tab.dataset.tab;
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + target).classList.add('active');
+  });
+});
+
+// ── Toast ────────────────────────────────────────────────
+function showToast(msg, dur = 2500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), dur);
+}
+
+// ── 載入 Bot 狀態 ────────────────────────────────────────
+async function loadStatus() {
+  try {
+    const res = await fetch('/api/status');
+    if (!res.ok) throw new Error();
+    const d = await res.json();
+
+    // Status bar
+    document.getElementById('bot-dot').classList.add('on');
+    document.getElementById('bot-status').textContent = 'Bot 運行中';
+
+    const h = Math.floor(d.uptime_seconds / 3600);
+    const m = Math.floor((d.uptime_seconds % 3600) / 60);
+    document.getElementById('uptime-display').textContent = `已運行 ${h}h ${m}m`;
+    document.getElementById('today-count').textContent = d.today_entries;
+    document.getElementById('total-diaries').textContent = d.total_diaries;
+
+    // 監控頁統計
+    document.getElementById('s-today').textContent   = d.today_entries;
+    document.getElementById('s-diaries').textContent = d.total_diaries;
+    document.getElementById('s-entries').textContent = d.total_entries;
+    document.getElementById('s-users').textContent   = d.user_count;
+
+    // 服務狀態
+    setBadge('svc-drive', d.gdrive_available, '已連線', '未設定');
+    setBadge('svc-gcal',  d.gcal_available,   '已設定', '未設定');
+  } catch (_) {
+    document.getElementById('bot-dot').style.background = '#CC0000';
+    document.getElementById('bot-status').textContent   = 'Bot 無回應';
+  }
+}
+
+function setBadge(id, ok, okLabel, failLabel) {
+  const el = document.getElementById(id);
+  if (ok) {
+    el.className = 'badge badge-ok';
+    el.textContent = '● ' + okLabel;
+  } else {
+    el.className = 'badge badge-warn';
+    el.textContent = '● ' + failLabel;
+  }
+}
+
+// ── 心情趨勢圖 ───────────────────────────────────────────
+async function loadMoodChart() {
+  try {
+    const res = await fetch('/api/mood?days=7');
+    const data = await res.json();
+
+    const container = document.getElementById('mood-chart-container');
+
+    // 建立最近 7 天的日期陣列
+    const days = [];
+    const now = new Date();
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      days.push(d.toISOString().split('T')[0]);
+    }
+
+    const moodMap = {};
+    data.forEach(d => { moodMap[d.diary_date] = d.mood_score; });
+
+    const emojiMap  = { '-2': '😢', '-1': '😔', '0': '😐', '1': '🙂', '2': '😄' };
+    const colorMap  = { '-2': '#e53935', '-1': '#ff7043', '0': '#9E9E9E', '1': '#66BB6A', '2': '#2E7D32' };
+
+    let html = '<div class="mood-chart">';
+    days.forEach(day => {
+      const raw     = moodMap[day];
+      const has     = raw !== undefined && raw !== null;
+      const key     = has ? String(Math.round(raw)) : null;
+      const color   = has ? (colorMap[key] || '#9E9E9E') : '#E5E5E5';
+      const emoji   = has ? (emojiMap[key] || '😐') : '';
+      const pxH     = has ? Math.max(8, Math.round(((raw + 2) / 4) * 64)) : 4;
+      const mmdd    = day.slice(5);
+
+      html += `<div class="mood-col">
+        <div class="mood-bar-area">
+          <div class="mood-emoji">${emoji}</div>
+          <div class="mood-bar" style="height:${pxH}px;background:${color}"></div>
+        </div>
+        <div class="mood-date">${mmdd}</div>
+      </div>`;
+    });
+    html += '</div>';
+    container.innerHTML = html;
+  } catch (_) {
+    document.getElementById('mood-chart-container').innerHTML =
+      '<div class="loading">無法載入心情資料</div>';
+  }
+}
+
+// ── 載入設定 ─────────────────────────────────────────────
+async function loadSettings() {
+  try {
+    const res  = await fetch('/api/settings');
+    const data = await res.json();
+
+    setValue('reminder_hours',       data.reminder_hours);
+    setValue('survey_hour',          data.survey_hour);
+    setValue('diary_generation_hour',data.diary_generation_hour);
+    setValue('timezone',             data.timezone);
+    setValue('gcal_calendar_id',     data.gcal_calendar_id);
+    setValue('google_drive_folder_id', data.google_drive_folder_id);
+    setValue('diary_template',       data.diary_template);
+
+    // GPT model select
+    const sel = document.getElementById('gpt_model');
+    if (data.gpt_model) {
+      sel.value = data.gpt_model;
+      // 若不在選項中就動態新增
+      if (!sel.value) {
+        const opt = new Option(data.gpt_model, data.gpt_model, true, true);
+        sel.prepend(opt);
+      }
+    }
+
+    // Drive 連結
+    const fid = data.google_drive_folder_id;
+    const driveEl = document.getElementById('drive-url');
+    if (fid) {
+      driveEl.textContent = `drive.google.com/drive/folders/${fid}`;
+      document.getElementById('drive-link-card').dataset.url =
+        `https://drive.google.com/drive/folders/${fid}`;
+    } else {
+      driveEl.textContent = '尚未設定 Google Drive 資料夾 ID';
+    }
+  } catch (_) {
+    // 靜默失敗
+  }
+}
+
+function setValue(id, val) {
+  const el = document.getElementById(id);
+  if (el && val !== undefined && val !== null) el.value = val;
+}
+
+function openDriveLink() {
+  const url = document.getElementById('drive-link-card').dataset.url;
+  if (url) window.open(url, '_blank');
+  else showToast('尚未設定 Google Drive 資料夾 ID');
+}
+
+// ── 儲存設定 ─────────────────────────────────────────────
+async function saveSettings() {
+  const btn = document.getElementById('save-btn');
+  btn.disabled = true;
+  btn.textContent = '儲存中...';
+  hideAlerts();
+
+  const payload = {
+    reminder_hours:        document.getElementById('reminder_hours').value.trim(),
+    survey_hour:           document.getElementById('survey_hour').value.trim(),
+    diary_generation_hour: document.getElementById('diary_generation_hour').value.trim(),
+    gpt_model:             document.getElementById('gpt_model').value,
+    timezone:              document.getElementById('timezone').value.trim(),
+    gcal_calendar_id:      document.getElementById('gcal_calendar_id').value.trim(),
+    google_drive_folder_id:document.getElementById('google_drive_folder_id').value.trim(),
+    diary_template:        document.getElementById('diary_template').value,
+  };
+
+  try {
+    const res  = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      showAlert('ok', '✅ 設定已儲存！排程相關設定（時間、時區）需要重啟 Bot 才會生效。');
+      showToast('設定已儲存');
+      loadSettings(); // 重新載入以確認
+    } else {
+      showAlert('err', '❌ 儲存失敗：' + (data.error || '未知錯誤'));
+    }
+  } catch (_) {
+    showAlert('err', '❌ 無法連線到 Bot，請確認 Bot 是否正在運行。');
+  }
+
+  btn.disabled = false;
+  btn.textContent = '儲存設定';
+}
+
+function showAlert(type, msg) {
+  const el = document.getElementById(type === 'ok' ? 'alert-ok' : 'alert-err');
+  el.textContent = msg;
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 6000);
+}
+
+function hideAlerts() {
+  document.getElementById('alert-ok').style.display  = 'none';
+  document.getElementById('alert-err').style.display = 'none';
+}
+
+// ── 初始化 ───────────────────────────────────────────────
+loadStatus();
+loadMoodChart();
+loadSettings();
+setInterval(loadStatus, 30000); // 每 30 秒更新狀態
+</script>
+</body>
+</html>
