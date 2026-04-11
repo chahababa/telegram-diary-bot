@@ -26,6 +26,12 @@ GOOGLE_CREDENTIALS_FILE: str = os.getenv("GOOGLE_CREDENTIALS_FILE", "credentials
 GOOGLE_CREDENTIALS_JSON: str = os.getenv("GOOGLE_CREDENTIALS_JSON", "")  # Zeabur 雲端部署用
 
 
+# === Google Calendar ===
+# 填入要讀取的 Google Calendar ID（通常是你的 Gmail 信箱，例如 me@gmail.com）
+# 使用前需先將日曆分享給 Service Account 的 email（至少「查看所有活動詳情」權限）
+GCAL_CALENDAR_ID: str = os.getenv("GCAL_CALENDAR_ID", "")
+
+
 # === 時區 ===
 TIMEZONE: str = os.getenv("TIMEZONE", "Asia/Taipei")
 

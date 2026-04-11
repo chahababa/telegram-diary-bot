@@ -17,6 +17,7 @@ from handlers.admin_handlers import register_admin_handlers
 from handlers.backdiary_handler import get_backdiary_handler
 from handlers.command_handlers import register_command_handlers
 from handlers.editdiary_handler import get_editdiary_handler
+from handlers.gcal_handler import get_gcal_handler
 from handlers.message_handlers import register_message_handlers
 from handlers.survey_handlers import SurveyManager
 from models.database import Database
@@ -62,6 +63,7 @@ async def post_init(app):
         BotCommand("backdiary", "📅 補記過去日期的日記"),
         BotCommand("editdiary", "✏️ 調整過去日期的日記"),
         BotCommand("status", "查看 Bot 運作狀態"),
+        BotCommand("calendar", "📅 回顧今日 Google Calendar 行程"),
         BotCommand("survey", "手動開始問卷"),
         BotCommand("admin", "管理員設定選單"),
     ]
@@ -117,6 +119,7 @@ def main():
     app.add_handler(survey_manager.get_conversation_handler(), group=0)
     app.add_handler(get_backdiary_handler(), group=0)
     app.add_handler(get_editdiary_handler(), group=0)
+    app.add_handler(get_gcal_handler(), group=0)
     register_command_handlers(app)
     register_admin_handlers(app)
     register_message_handlers(app)
