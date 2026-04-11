@@ -115,10 +115,12 @@ async def cmd_calendar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
 
+    diary_date = get_diary_date()
+
     await update.message.reply_text("🗓️ 正在讀取今天的行程，請稍候...")
 
     try:
-        events = await get_today_events()
+        events = await get_today_events(diary_date=diary_date)
     except Exception as e:
         logger.error(f"取得 Google Calendar 行程失敗：{e}")
         await update.message.reply_text(
@@ -140,7 +142,6 @@ async def cmd_calendar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
 
-    diary_date = get_diary_date()
     context.user_data["gcal_events"] = events
     context.user_data["gcal_index"] = 0
     context.user_data["gcal_saved_count"] = 0

@@ -59,9 +59,15 @@ def is_available() -> bool:
     return has_calendar_credentials() and bool(config.GCAL_CALENDAR_ID)
 
 
-async def get_today_events() -> list[dict]:
+async def get_today_events(diary_date: str | None = None) -> list[dict]:
     """
-    取得今天的 Google Calendar 行程列表。
+    取得指定日期的 Google Calendar 行程列表。
+
+    Args:
+        diary_date: 要查詢的日記日期（格式 YYYY-MM-DD）。
+                    若為 None，則使用今天的實際日期。
+                    凌晨 00:00–03:59 呼叫時應傳入 get_diary_date() 的回傳值，
+                    確保行程日期與日記歸屬日期一致。
 
     Returns:
         行程列表，每筆 dict 包含：
@@ -77,9 +83,21 @@ async def get_today_events() -> list[dict]:
     tz = pytz.timezone(config.TIMEZONE)
     now = datetime.now(tz)
 
-    # 今天的起始與結束（本地時區）
-    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    day_end = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+    if diary_date:
+        # 使用指定的日記歸屬日期（處理凌晨 00:00–03:59 記錄歸前日的情境）
+        target = datetime.strptime(diary_date, "%Y-%m-%d")
+        day_start = now.replace(
+            year=target.year, month=target.month, day=target.day,
+            hour=0, minute=0, second=0, microsecond=0,
+        )
+        day_end = now.replace(
+            year=target.year, month=target.month, day=target.day,
+            hour=23, minute=59, second=59, microsecond=999999,
+        )
+    else:
+        # 預設使用今天的實際日期
+        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = now.replace(hour=23, minute=59, second=59, microsecond=999999)
 
     time_min = day_start.isoformat()
     time_max = day_end.isoformat()
