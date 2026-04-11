@@ -22,24 +22,26 @@
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
-    html { height: 100%; overflow-y: scroll; }
-
     body {
       font-family: 'Inter', 'Noto Sans TC', 'PingFang TC', sans-serif;
       background: var(--bg);
       color: var(--text);
       line-height: 1.6;
       font-size: 15px;
-      min-height: 100%;
+    }
+
+    /* ── Sticky header wrapper ───────────────────────── */
+    .sticky-header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--bg);
     }
 
     /* ── Navigation ─────────────────────────────────── */
     .nav {
-      position: sticky;
-      top: 0;
       background: var(--bg);
       border-bottom: 1px solid var(--border);
-      z-index: 100;
       padding: 0 40px;
       display: flex;
       align-items: center;
@@ -427,27 +429,29 @@
 </head>
 <body>
 
-<!-- Navigation -->
-<nav class="nav">
-  <div class="nav-brand">📔 日記助理</div>
-  <div class="nav-tabs">
-    <div class="nav-tab active" data-tab="guide">功能說明</div>
-    <div class="nav-tab" data-tab="monitor">狀態監控</div>
-    <div class="nav-tab" data-tab="settings">設定</div>
-    <div class="nav-tab" data-tab="links">快速連結</div>
-  </div>
-</nav>
+<header class="sticky-header">
+  <!-- Navigation -->
+  <nav class="nav">
+    <div class="nav-brand">📔 日記助理</div>
+    <div class="nav-tabs">
+      <div class="nav-tab active" data-tab="guide">功能說明</div>
+      <div class="nav-tab" data-tab="monitor">狀態監控</div>
+      <div class="nav-tab" data-tab="settings">設定</div>
+      <div class="nav-tab" data-tab="links">快速連結</div>
+    </div>
+  </nav>
 
-<!-- Status bar -->
-<div class="status-bar">
-  <span class="status-indicator">
-    <span class="status-dot" id="bot-dot"></span>
-    <span id="bot-status">載入中...</span>
-  </span>
-  <span id="uptime-display"></span>
-  <span>今日記錄：<strong id="today-count">—</strong> 筆</span>
-  <span>累計日記：<strong id="total-diaries">—</strong> 篇</span>
-</div>
+  <!-- Status bar -->
+  <div class="status-bar">
+    <span class="status-indicator">
+      <span class="status-dot" id="bot-dot"></span>
+      <span id="bot-status">載入中...</span>
+    </span>
+    <span id="uptime-display"></span>
+    <span>今日記錄：<strong id="today-count">—</strong> 筆</span>
+    <span>累計日記：<strong id="total-diaries">—</strong> 篇</span>
+  </div>
+</header>
 
 <!-- Main -->
 <main class="main">
