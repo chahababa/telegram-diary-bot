@@ -43,7 +43,7 @@ def _get_calendar_service():
 
 def has_calendar_credentials() -> bool:
     """檢查 Google Calendar 憑證是否存在"""
-    credentials_json = config.GOOGLE_CREDENTIALS_JSON or os.getenv("GOOGLE_CREDENTIALS_JSON", "")
+    credentials_json = os.getenv("GOOGLE_CREDENTIALS_JSON") or config.GOOGLE_CREDENTIALS_JSON
     if credentials_json:
         try:
             json.loads(credentials_json)

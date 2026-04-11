@@ -210,9 +210,10 @@ async def handle_gen_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if choice == "no":
         await query.edit_message_text(
-            f"好的！稍後可用 /diary 來產出今天的日記。"
+            f"好的！稍後可用 /diary {diary_date} 來產出 {diary_date} 的日記。"
         )
-        context.user_data.clear()
+        for key in ["gcal_events", "gcal_index", "gcal_saved_count", "gcal_diary_date"]:
+            context.user_data.pop(key, None)
         return ConversationHandler.END
 
     await query.edit_message_text(
@@ -283,7 +284,8 @@ async def handle_gen_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ),
         )
 
-    context.user_data.clear()
+    for key in ["gcal_events", "gcal_index", "gcal_saved_count", "gcal_diary_date"]:
+        context.user_data.pop(key, None)
     return ConversationHandler.END
 
 
@@ -292,7 +294,8 @@ async def handle_gen_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """/cancel — 取消行程回顧"""
     saved = context.user_data.get("gcal_saved_count", 0)
-    context.user_data.clear()
+    for key in ["gcal_events", "gcal_index", "gcal_saved_count", "gcal_diary_date"]:
+        context.user_data.pop(key, None)
 
     msg = "❌ 行程回顧已取消。"
     if saved > 0:
