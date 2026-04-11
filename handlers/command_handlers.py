@@ -96,9 +96,9 @@ async def cmd_diary(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     from models.database import Database
     from services.ai_service import AIService
-    from services.gdrive_service import upload_diary, is_available
+    from services.diary_service import get_diary_template
+    from services.gdrive_service import upload_diary, is_available, save_diary_locally
     from services.scheduler_service import get_diary_date, get_now
-    from templates.diary_template import DIARY_TEMPLATE
 
     db: Database = context.bot_data["db"]
     ai: AIService = context.bot_data["ai"]
@@ -153,7 +153,12 @@ async def cmd_diary(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         # 生成日記
-        diary_content = await ai.generate_diary(diary_date, entries, survey, DIARY_TEMPLATE)
+        diary_content = await ai.generate_diary(
+            diary_date,
+            entries,
+            survey,
+            get_diary_template(),
+        )
 
         # 儲存到資料庫
         now_str = get_now().isoformat()
@@ -170,9 +175,11 @@ async def cmd_diary(update: Update, context: ContextTypes.DEFAULT_TYPE):
             db.mark_diary_uploaded(user_id, diary_date)
             upload_status = "✅ 已上傳至 Google Drive"
         elif is_available():
-            upload_status = "⚠️ Google Drive 上傳失敗，已本地暫存"
+            local_path = await save_diary_locally(diary_date, diary_content)
+            upload_status = f"⚠️ Google Drive 上傳失敗，已本地暫存：{local_path}"
         else:
-            upload_status = "ℹ️ Google Drive 未設定，已本地暫存"
+            local_path = await save_diary_locally(diary_date, diary_content)
+            upload_status = f"ℹ️ Google Drive 未設定，已本地暫存：{local_path}"
 
         # 回傳日記（Telegram 訊息上限 4096 字元，超過需分段）
         backdated_note = "（補記）" if is_backdated else ""

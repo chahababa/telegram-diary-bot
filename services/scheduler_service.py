@@ -25,6 +25,17 @@ scheduler: AsyncIOScheduler | None = None
 _bot: Bot | None = None
 
 
+def _get_survey_hour(db) -> int:
+    """讀取問卷開始時間，格式錯誤時退回預設值。"""
+    raw_survey = db.get_setting("survey_hour", "")
+    if raw_survey:
+        try:
+            return int(raw_survey)
+        except ValueError:
+            logger.warning("survey_hour 設定格式錯誤，改用預設值")
+    return config.SURVEY_HOUR
+
+
 def init_scheduler(bot: Bot):
     """
     初始化排程器
@@ -61,14 +72,7 @@ def init_scheduler(bot: Bot):
     else:
         reminder_hours = config.REMINDER_HOURS
 
-    raw_survey = db.get_setting("survey_hour", "")
-    if raw_survey:
-        try:
-            survey_hour = int(raw_survey)
-        except ValueError:
-            survey_hour = config.SURVEY_HOUR
-    else:
-        survey_hour = config.SURVEY_HOUR
+    survey_hour = _get_survey_hour(db)
 
     # 註冊定時提醒（每 3 小時）
     for hour in reminder_hours:
@@ -93,15 +97,15 @@ def init_scheduler(bot: Bot):
         name=f"{survey_hour}:00 結算問卷",
     )
 
-    # 註冊 23:50 問卷超時自動結算
+    # 問卷開始後 50 分鐘自動結算，避免與自訂 survey_hour 脫鉤
     scheduler.add_job(
         auto_close_questionnaire,
         "cron",
-        hour=23,
+        hour=survey_hour,
         minute=50,
         id="questionnaire_timeout",
         replace_existing=True,
-        name="23:50 問卷超時結算",
+        name=f"{survey_hour}:50 問卷超時結算",
     )
 
     # 註冊 00:00 日記產出

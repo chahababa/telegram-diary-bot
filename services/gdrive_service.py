@@ -37,6 +37,21 @@ def _get_drive_service():
     return build("drive", "v3", credentials=creds)
 
 
+def has_drive_credentials() -> bool:
+    """檢查 Google Drive 憑證是否真的存在且可被使用。"""
+    credentials_json = config.GOOGLE_CREDENTIALS_JSON or os.getenv("GOOGLE_CREDENTIALS_JSON", "")
+    if credentials_json:
+        try:
+            json.loads(credentials_json)
+            return True
+        except json.JSONDecodeError:
+            logger.warning("GOOGLE_CREDENTIALS_JSON 不是合法 JSON")
+            return False
+
+    credentials_path = Path(config.GOOGLE_CREDENTIALS_FILE)
+    return credentials_path.is_file()
+
+
 async def upload_diary(date_str: str, diary_content: str, max_retries: int = 3) -> str | None:
     """
     將日記上傳至 Google Drive
@@ -210,5 +225,4 @@ async def upload_diary_overwrite(date_str: str, diary_content: str, max_retries:
 
 def is_available() -> bool:
     """檢查是否已經設定 Google Drive 相關環境變數"""
-    has_credentials = bool(config.GOOGLE_CREDENTIALS_JSON or config.GOOGLE_CREDENTIALS_FILE)
-    return bool(has_credentials and config.GOOGLE_DRIVE_FOLDER_ID)
+    return bool(has_drive_credentials() and config.GOOGLE_DRIVE_FOLDER_ID)

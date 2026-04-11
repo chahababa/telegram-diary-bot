@@ -22,6 +22,13 @@ def _get_ai() -> AIService:
     return _ai
 
 
+def get_diary_template() -> str:
+    """優先使用管理員自訂範本，否則退回預設範本。"""
+    db = _get_db()
+    custom_template = db.get_setting("diary_template", "").strip()
+    return custom_template if custom_template else DIARY_TEMPLATE
+
+
 async def generate_diary(user_id: int, diary_date: str) -> str:
     """
     產出指定使用者、指定日期的日記。
@@ -47,7 +54,12 @@ async def generate_diary(user_id: int, diary_date: str) -> str:
         f"（記錄 {len(entries)} 筆，問卷 {'已完成' if survey and survey.completed else '未完成'}）"
     )
 
-    diary_content = await ai.generate_diary(diary_date, entries, survey, DIARY_TEMPLATE)
+    diary_content = await ai.generate_diary(
+        diary_date,
+        entries,
+        survey,
+        get_diary_template(),
+    )
 
     # 儲存到資料庫
     from services.scheduler_service import get_now

@@ -233,7 +233,7 @@ async def handle_edit_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     db: Database = context.bot_data["db"]
     ai = context.bot_data["ai"]
-    from templates.diary_template import DIARY_TEMPLATE
+    from services.diary_service import get_diary_template
     from services.gdrive_service import upload_diary_overwrite, is_available, save_diary_locally
 
     # 將舊版本存入歷史記錄
@@ -242,7 +242,12 @@ async def handle_edit_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE
     # 重新生成（含所有記錄＋補充內容）
     entries = db.get_entries_by_date(user_id, diary_date)
     survey = db.get_survey(user_id, diary_date)
-    new_content = await ai.generate_diary(diary_date, entries, survey, DIARY_TEMPLATE)
+    new_content = await ai.generate_diary(
+        diary_date,
+        entries,
+        survey,
+        get_diary_template(),
+    )
 
     now_str = get_now().isoformat()
     db.save_diary(user_id, diary_date, new_content, now_str)

@@ -5,9 +5,11 @@ Telegram 日記助理 Bot — 主程式
 
 import logging
 import sys
+import warnings
 from pathlib import Path
 
 from telegram import BotCommand
+from telegram.warnings import PTBUserWarning
 from telegram.ext import ApplicationBuilder
 
 from config import TELEGRAM_BOT_TOKEN, validate_config, LOCAL_BACKUP_DIR
@@ -22,6 +24,18 @@ from services.ai_service import AIService
 from templates.diary_template import REMINDER_MESSAGES, DIARY_TEMPLATE
 
 # ── 日誌設定 ──────────────────────────────────
+
+if hasattr(sys.stdout, "reconfigure"):
+    # Windows cp950 終端無法穩定輸出 emoji，改用容錯模式避免記錄流程中斷。
+    sys.stdout.reconfigure(errors="backslashreplace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(errors="backslashreplace")
+
+warnings.filterwarnings(
+    "ignore",
+    message=r"If 'per_message=False', 'CallbackQueryHandler' will not be tracked for every message\..*",
+    category=PTBUserWarning,
+)
 
 logging.basicConfig(
     level=logging.INFO,

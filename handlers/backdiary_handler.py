@@ -389,13 +389,18 @@ async def handle_gen_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     db: Database = context.bot_data["db"]
     ai = context.bot_data["ai"]
-    from templates.diary_template import DIARY_TEMPLATE
+    from services.diary_service import get_diary_template
     from services.gdrive_service import upload_diary, is_available, save_diary_locally
 
     entries = db.get_entries_by_date(user_id, diary_date)
     survey = db.get_survey(user_id, diary_date)
 
-    new_content = await ai.generate_diary(diary_date, entries, survey, DIARY_TEMPLATE)
+    new_content = await ai.generate_diary(
+        diary_date,
+        entries,
+        survey,
+        get_diary_template(),
+    )
 
     # 若原本已有日記，補充在下方；若無，直接建立
     existing = db.get_diary(user_id, diary_date)
