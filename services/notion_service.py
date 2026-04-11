@@ -81,7 +81,7 @@ async def extract_tags(diary_content: str) -> list[str]:
                 {"role": "user", "content": prompt},
             ],
             temperature=0,
-            max_tokens=50,
+            max_completion_tokens=50,
         )
         raw = response.choices[0].message.content.strip()
         if not raw:
@@ -111,7 +111,7 @@ async def extract_title(diary_content: str) -> str:
                 {"role": "user", "content": prompt},
             ],
             temperature=0.3,
-            max_tokens=30,
+            max_completion_tokens=30,
         )
         title = response.choices[0].message.content.strip()
         # 截斷超過 15 字的標題（保險）
