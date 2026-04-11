@@ -13,6 +13,19 @@ All notable changes to this project will be documented in this file.
   - `diary_embeddings`：儲存日記向量嵌入（分段）
   - `notion_sync_log`：記錄 Notion 推送歷史（防止重複建立頁面）
 
+## [2026-04-11] Sprint 1 — Notion 推送服務
+
+### Changes
+
+- `services/notion_service.py`：新增 Notion 推送服務
+  - `is_available()`：檢查 Notion Token 是否已設定
+  - `extract_tags()`：用 GPT 萃取日記標籤（工作／生活／旅行／美食／健康／反思）
+  - `extract_title()`：用 GPT 產出 15 字以內的精簡標題
+  - `push_diary()`：推送日記到 Notion，支援更新既有頁面與建立新頁面
+  - 自動記錄推送結果至 `notion_sync_log` 資料表
+
+---
+
 ## [2026-04-10] Deployment Fix & Recovery
 
 ### Summary
