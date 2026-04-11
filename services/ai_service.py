@@ -119,13 +119,13 @@ class AIService:
                     {"role": "user", "content": prompt},
                 ],
                 temperature=0.7,
-                max_completion_tokens=2000,
+                max_tokens=2000,
             )
             diary_content = response.choices[0].message.content
             logger.info(f"日記生成成功，日期: {diary_date}")
             return diary_content
         except Exception as e:
-            logger.error(f"日記生成失敗: {e}")
+            logger.error(f"日記生成失敗: {type(e).__name__}: {e}")
             # 回傳基本格式的日記
             return self._fallback_diary(diary_date, entries, survey)
 
