@@ -164,6 +164,16 @@ async def cmd_diary(update: Update, context: ContextTypes.DEFAULT_TYPE):
         now_str = get_now().isoformat()
         db.save_diary(user_id, diary_date, diary_content, now_str)
 
+        # 自動推送至 Notion（失敗不影響主流程）
+        try:
+            from services import notion_service
+            if notion_service.is_available():
+                mood_score = survey.mood_score if survey else None
+                await notion_service.push_diary(user_id, diary_date, diary_content, mood_score)
+                logger.info(f"使用者 {user_id} 的 {diary_date} 日記已推送至 Notion")
+        except Exception as notion_err:
+            logger.error(f"推送 Notion 失敗，不影響主流程 — user={user_id} date={diary_date}: {notion_err}")
+
         # 上傳到 Google Drive
         try:
             file_id = await upload_diary(diary_date, diary_content)
