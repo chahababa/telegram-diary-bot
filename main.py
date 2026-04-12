@@ -22,6 +22,7 @@ from handlers.gcal_handler import get_gcal_handler
 from handlers.message_handlers import register_message_handlers
 from handlers.survey_handlers import SurveyManager
 from handlers.sync_handler import register_sync_handlers
+from handlers.search_handler import register_search_handlers
 from models.database import Database
 from services.ai_service import AIService
 from templates.diary_template import REMINDER_MESSAGES, DIARY_TEMPLATE
@@ -70,6 +71,7 @@ async def post_init(app):
         BotCommand("admin", "管理員設定選單"),
         BotCommand("sync", "🔄 手動同步日記到 Notion"),
         BotCommand("sync_all", "🔄 同步所有歷史日記到 Notion"),
+        BotCommand("search", "🔍 語意搜尋歷史日記"),
     ]
     await app.bot.set_my_commands(commands)
     logger.info("Bot 指令選單已設定")
@@ -127,6 +129,7 @@ def main():
     register_command_handlers(app)
     register_admin_handlers(app)
     register_sync_handlers(app)
+    register_search_handlers(app)
     register_message_handlers(app)
 
     # 啟動 Web 儀錶板（背景執行緒）
