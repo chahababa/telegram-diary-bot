@@ -21,6 +21,7 @@ from handlers.editdiary_handler import get_editdiary_handler
 from handlers.gcal_handler import get_gcal_handler
 from handlers.message_handlers import register_message_handlers
 from handlers.survey_handlers import SurveyManager
+from handlers.sync_handler import register_sync_handlers
 from models.database import Database
 from services.ai_service import AIService
 from templates.diary_template import REMINDER_MESSAGES, DIARY_TEMPLATE
@@ -67,6 +68,8 @@ async def post_init(app):
         BotCommand("calendar", "📅 回顧今日 Google Calendar 行程"),
         BotCommand("survey", "手動開始問卷"),
         BotCommand("admin", "管理員設定選單"),
+        BotCommand("sync", "🔄 手動同步日記到 Notion"),
+        BotCommand("sync_all", "🔄 同步所有歷史日記到 Notion"),
     ]
     await app.bot.set_my_commands(commands)
     logger.info("Bot 指令選單已設定")
@@ -123,6 +126,7 @@ def main():
     app.add_handler(get_gcal_handler(), group=0)
     register_command_handlers(app)
     register_admin_handlers(app)
+    register_sync_handlers(app)
     register_message_handlers(app)
 
     # 啟動 Web 儀錶板（背景執行緒）
