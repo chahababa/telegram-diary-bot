@@ -275,6 +275,14 @@ async def push_diary(
                 "VALUES (?, ?, ?, ?)",
                 (user_id, diary_date, page_id, now_str),
             )
+
+        # ── 觸發 Embedding 生成與儲存（失敗不影響主流程）──
+        try:
+            from services.embedding_service import store_embeddings
+            await store_embeddings(user_id, diary_date, diary_content)
+        except Exception as emb_err:
+            logger.warning(f"Embedding 儲存失敗，不影響主流程 — user={user_id} date={diary_date}: {emb_err}")
+
         return True
 
     except Exception as e:
