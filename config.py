@@ -48,7 +48,7 @@ DIARY_GENERATION_HOUR: int = 0   # 00:00 產出日記
 
 
 # === GPT 模型 ===
-GPT_MODEL: str = os.getenv("GPT_MODEL", "gpt-4o")
+GPT_MODEL: str = os.getenv("GPT_MODEL", "gpt-4o-mini")
 
 # === 語音轉文字 ===
 WHISPER_MODEL: str = "whisper-1"
