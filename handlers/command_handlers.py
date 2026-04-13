@@ -191,18 +191,13 @@ async def cmd_diary(update: Update, context: ContextTypes.DEFAULT_TYPE):
             local_path = await save_diary_locally(diary_date, diary_content)
             upload_status = f"ℹ️ Google Drive 未設定，已本地暫存：{local_path}"
 
-        # 回傳日記（Telegram 訊息上限 4096 字元，超過需分段）
+        # 回傳日記（header 用 Markdown，diary_content 純文字避免特殊字元解析錯誤）
         backdated_note = "（補記）" if is_backdated else ""
-        header = f"📔 **{diary_date} 的日記{backdated_note}**\n{upload_status}\n\n"
-        full_msg = header + diary_content
-
-        if len(full_msg) <= 4096:
-            await update.message.reply_text(full_msg, parse_mode="Markdown")
-        else:
-            await update.message.reply_text(header, parse_mode="Markdown")
-            for i in range(0, len(diary_content), 4000):
-                chunk = diary_content[i:i + 4000]
-                await update.message.reply_text(chunk)
+        header = f"📔 **{diary_date} 的日記{backdated_note}**\n{upload_status}"
+        await update.message.reply_text(header, parse_mode="Markdown")
+        for i in range(0, len(diary_content), 4000):
+            chunk = diary_content[i:i + 4000]
+            await update.message.reply_text(chunk)
 
     except Exception as e:
         error_detail = f"{type(e).__name__}: {e}"

@@ -263,26 +263,18 @@ async def handle_gen_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             upload_status = "ℹ️ Google Drive 未設定"
 
-        header = f"📔 *{diary_date} 的日記*\n{upload_status}\n\n"
-        full_msg = header + diary_content
-
-        if len(full_msg) <= 4096:
+        # header 用 Markdown，diary_content 純文字避免特殊字元解析錯誤
+        header = f"📔 *{diary_date} 的日記*\n{upload_status}"
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=header,
+            parse_mode="Markdown",
+        )
+        for i in range(0, len(diary_content), 4000):
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
-                text=full_msg,
-                parse_mode="Markdown",
+                text=diary_content[i:i + 4000],
             )
-        else:
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text=header,
-                parse_mode="Markdown",
-            )
-            for i in range(0, len(diary_content), 4000):
-                await context.bot.send_message(
-                    chat_id=update.effective_chat.id,
-                    text=diary_content[i:i + 4000],
-                )
 
     except Exception as e:
         error_detail = f"{type(e).__name__}: {e}"
