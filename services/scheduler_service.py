@@ -267,11 +267,16 @@ async def trigger_diary_generation():
                 )
 
         except Exception as e:
-            logger.error(f"使用者 {user_id} 日記產出失敗：{e}")
+            error_detail = f"{type(e).__name__}: {e}"
+            if hasattr(e, 'status_code'):
+                error_detail += f" (status={e.status_code})"
+            if hasattr(e, 'body'):
+                error_detail += f" body={e.body}"
+            logger.error(f"使用者 {user_id} 日記產出失敗：{error_detail}")
             try:
                 await _bot.send_message(
                     chat_id=user_id,
-                    text="⚠️ 日記產出時發生錯誤，請稍後使用 /diary 手動觸發。",
+                    text=f"⚠️ 日記產出失敗\n\n錯誤詳情：{error_detail}",
                 )
             except Exception:
                 pass

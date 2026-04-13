@@ -285,12 +285,16 @@ async def handle_gen_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
 
     except Exception as e:
-        logger.error(f"Calendar 行程回顧後產出日記失敗（使用者 {user_id}，日期 {diary_date}）：{e}")
+        error_detail = f"{type(e).__name__}: {e}"
+        if hasattr(e, 'status_code'):
+            error_detail += f" (status={e.status_code})"
+        if hasattr(e, 'body'):
+            error_detail += f" body={e.body}"
+        logger.error(f"Calendar 行程回顧後產出日記失敗（使用者 {user_id}，日期 {diary_date}）：{error_detail}")
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=(
-                f"⚠️ 日記產出時發生錯誤：{type(e).__name__}\n\n"
-                "行程記錄已儲存，稍後可用 /diary 重新產出。"
+                f"⚠️ 日記產出失敗\n\n錯誤詳情：{error_detail}\n\n行程記錄已儲存，稍後可用 /diary 重新產出。"
             ),
         )
 

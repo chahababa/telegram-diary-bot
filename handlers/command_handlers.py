@@ -205,10 +205,14 @@ async def cmd_diary(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(chunk)
 
     except Exception as e:
-        logger.error(f"手動日記產出失敗（使用者 {user_id}，日期 {diary_date}）：{e}")
+        error_detail = f"{type(e).__name__}: {e}"
+        if hasattr(e, 'status_code'):
+            error_detail += f" (status={e.status_code})"
+        if hasattr(e, 'body'):
+            error_detail += f" body={e.body}"
+        logger.error(f"手動日記產出失敗（使用者 {user_id}，日期 {diary_date}）：{error_detail}")
         await update.message.reply_text(
-            f"⚠️ 日記產出時發生錯誤：{type(e).__name__}\n\n"
-            "請稍後再試，或聯繫管理員檢查 Bot 日誌。"
+            f"⚠️ 日記產出失敗\n\n錯誤詳情：{error_detail}"
         )
 
 

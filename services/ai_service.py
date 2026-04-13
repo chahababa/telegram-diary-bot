@@ -125,9 +125,13 @@ class AIService:
             logger.info(f"日記生成成功，日期: {diary_date}")
             return diary_content
         except Exception as e:
-            logger.error(f"日記生成失敗: {type(e).__name__}: {e}")
-            # 回傳基本格式的日記
-            return self._fallback_diary(diary_date, entries, survey)
+            error_detail = f"{type(e).__name__}: {e}"
+            if hasattr(e, 'status_code'):
+                error_detail += f" (status={e.status_code})"
+            if hasattr(e, 'body'):
+                error_detail += f" body={e.body}"
+            logger.error(f"日記生成失敗: {error_detail}")
+            raise  # 不要吞掉，讓上層看到完整錯誤
 
     def _fallback_diary(
         self,
