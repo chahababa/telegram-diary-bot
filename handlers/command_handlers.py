@@ -197,9 +197,15 @@ async def cmd_diary(update: Update, context: ContextTypes.DEFAULT_TYPE):
         full_msg = header + diary_content
 
         if len(full_msg) <= 4096:
-            await update.message.reply_text(full_msg, parse_mode="Markdown")
+            try:
+                await update.message.reply_text(full_msg, parse_mode="Markdown")
+            except Exception:
+                await update.message.reply_text(full_msg)
         else:
-            await update.message.reply_text(header, parse_mode="Markdown")
+            try:
+                await update.message.reply_text(header, parse_mode="Markdown")
+            except Exception:
+                await update.message.reply_text(header)
             for i in range(0, len(diary_content), 4000):
                 chunk = diary_content[i:i + 4000]
                 await update.message.reply_text(chunk)
