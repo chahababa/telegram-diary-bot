@@ -243,12 +243,12 @@ async def trigger_diary_generation():
             # 傳送至 Telegram
             # Telegram 訊息長度限制為 4096 字元
             if len(diary) <= 4096:
-                await _bot.send_message(chat_id=user_id, text=diary)
+                await _bot.send_message(chat_id=user_id, text=diary, parse_mode=None)
             else:
                 # 分段傳送
                 chunks = [diary[i:i + 4000] for i in range(0, len(diary), 4000)]
                 for chunk in chunks:
-                    await _bot.send_message(chat_id=user_id, text=chunk)
+                    await _bot.send_message(chat_id=user_id, text=chunk, parse_mode=None)
 
             # 上傳至 Google Drive
             file_id = await upload_diary(yesterday, diary)
@@ -257,6 +257,7 @@ async def trigger_diary_generation():
                 await _bot.send_message(
                     chat_id=user_id,
                     text="✅ 日記已同步儲存至 Google Drive！",
+                    parse_mode=None,
                 )
             else:
                 # 上傳失敗，暫存本地
@@ -264,6 +265,7 @@ async def trigger_diary_generation():
                 await _bot.send_message(
                     chat_id=user_id,
                     text=f"⚠️ Google Drive 上傳失敗，日記已暫存至本地：{local_path}",
+                    parse_mode=None,
                 )
 
         except Exception as e:
@@ -277,6 +279,7 @@ async def trigger_diary_generation():
                 await _bot.send_message(
                     chat_id=user_id,
                     text=f"⚠️ 日記產出失敗\n\n錯誤詳情：{error_detail}",
+                    parse_mode=None,
                 )
             except Exception:
                 pass

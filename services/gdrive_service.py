@@ -131,8 +131,8 @@ async def save_diary_locally(date_str: str, diary_content: str) -> str:
     Returns:
         本地檔案路徑
     """
-    local_dir = Path("local_diaries")
-    local_dir.mkdir(exist_ok=True)
+    local_dir = Path(config.LOCAL_BACKUP_DIR)
+    local_dir.mkdir(parents=True, exist_ok=True)
 
     filename = f"diary-{date_str}.md"
     file_path = local_dir / filename

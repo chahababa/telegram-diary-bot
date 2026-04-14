@@ -56,8 +56,8 @@ def create_flask_app() -> Flask:
 
         # Google Drive 狀態
         try:
-            from services.gdrive_service import GDriveService
-            gdrive_ok = GDriveService().is_available()
+            from services.gdrive_service import is_available as gdrive_is_available
+            gdrive_ok = gdrive_is_available()
         except Exception:
             gdrive_ok = False
 

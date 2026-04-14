@@ -274,6 +274,7 @@ async def handle_gen_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
                 text=diary_content[i:i + 4000],
+                parse_mode=None,
             )
 
     except Exception as e:

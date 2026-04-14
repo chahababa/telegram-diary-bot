@@ -214,16 +214,16 @@ async def cmd_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"{summary}"
     )
 
-    # 訊息超過 4096 字元時分段發送
+    # 訊息超過 4096 字元時分段發送（AI 生成內容不使用 Markdown 解析，避免特殊字元導致 BadRequest）
     if len(result_msg) <= 4096:
-        await update.message.reply_text(result_msg, parse_mode="Markdown")
+        await update.message.reply_text(result_msg, parse_mode=None)
     else:
         await update.message.reply_text(
-            f"🔍 **搜尋：{query}**\n📅 來源日記：{date_list}",
-            parse_mode="Markdown",
+            f"🔍 搜尋：{query}\n📅 來源日記：{date_list}",
+            parse_mode=None,
         )
         for i in range(0, len(summary), 4000):
-            await update.message.reply_text(summary[i:i + 4000])
+            await update.message.reply_text(summary[i:i + 4000], parse_mode=None)
 
     logger.info(
         f"使用者 {user_id} 搜尋「{query}」，回傳 {len(top_hits)} 筆結果"

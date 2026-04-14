@@ -252,6 +252,16 @@ async def handle_edit_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE
     now_str = get_now().isoformat()
     db.save_diary(user_id, diary_date, new_content, now_str)
 
+    # 自動推送至 Notion（失敗不影響主流程）
+    try:
+        from services import notion_service
+        if notion_service.is_available():
+            mood_score = survey.mood_score if survey else None
+            await notion_service.push_diary(user_id, diary_date, new_content, mood_score)
+            logger.info(f"使用者 {user_id} 的 {diary_date} 編輯後日記已推送至 Notion")
+    except Exception as notion_err:
+        logger.error(f"推送 Notion 失敗，不影響主流程 — user={user_id} date={diary_date}: {notion_err}")
+
     # 覆蓋上傳至 Drive
     file_id = await upload_diary_overwrite(diary_date, new_content)
     if file_id:
@@ -262,25 +272,26 @@ async def handle_edit_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE
     else:
         upload_status = "ℹ️ Google Drive 未設定"
 
-    header = f"📔 *{diary_date} 更新後的日記*\n{upload_status}\n\n"
+    header = f"📔 {diary_date} 更新後的日記\n{upload_status}\n\n"
     full_msg = header + new_content
 
     if len(full_msg) <= 4096:
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=full_msg,
-            parse_mode="Markdown",
+            parse_mode=None,
         )
     else:
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=header,
-            parse_mode="Markdown",
+            parse_mode=None,
         )
         for i in range(0, len(new_content), 4000):
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
                 text=new_content[i:i + 4000],
+                parse_mode=None,
             )
 
     context.user_data.clear()

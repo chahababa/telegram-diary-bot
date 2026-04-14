@@ -431,26 +431,27 @@ async def handle_gen_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         upload_status = "ℹ️ Google Drive 未設定"
 
-    # 回傳補充日記給使用者
-    header = f"📔 *{diary_date} 的補充日記*\n{upload_status}\n\n"
+    # 補充內容與狀態字串都可能包含 Markdown 特殊字元，這裡改用純文字。
+    header = f"📔 {diary_date} 的補充日記\n{upload_status}\n\n"
     full_msg = header + new_content
 
     if len(full_msg) <= 4096:
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=full_msg,
-            parse_mode="Markdown",
+            parse_mode=None,
         )
     else:
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=header,
-            parse_mode="Markdown",
+            parse_mode=None,
         )
         for i in range(0, len(new_content), 4000):
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
                 text=new_content[i:i + 4000],
+                parse_mode=None,
             )
 
     context.user_data.clear()

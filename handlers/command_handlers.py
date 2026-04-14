@@ -191,13 +191,17 @@ async def cmd_diary(update: Update, context: ContextTypes.DEFAULT_TYPE):
             local_path = await save_diary_locally(diary_date, diary_content)
             upload_status = f"ℹ️ Google Drive 未設定，已本地暫存：{local_path}"
 
-        # 回傳日記（header 用 Markdown，diary_content 純文字避免特殊字元解析錯誤）
+        # 明確關閉 parse_mode，避免全域預設 Markdown 解析掉 AI 內容或本地路徑。
         backdated_note = "（補記）" if is_backdated else ""
-        header = f"📔 **{diary_date} 的日記{backdated_note}**\n{upload_status}"
-        await update.message.reply_text(header, parse_mode="Markdown")
+        header = f"📔 {diary_date} 的日記{backdated_note}\n{upload_status}"
+        logger.info(f"準備傳送日記 header：user={user_id} date={diary_date} len={len(header)}")
+        await update.message.reply_text(header, parse_mode=None)
         for i in range(0, len(diary_content), 4000):
             chunk = diary_content[i:i + 4000]
-            await update.message.reply_text(chunk)
+            logger.info(
+                f"準備傳送日記 chunk：user={user_id} date={diary_date} index={i // 4000 + 1} len={len(chunk)}"
+            )
+            await update.message.reply_text(chunk, parse_mode=None)
 
     except Exception as e:
         error_detail = f"{type(e).__name__}: {e}"
