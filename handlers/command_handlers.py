@@ -4,6 +4,7 @@
 
 import logging
 import re
+import asyncio
 from datetime import datetime
 
 from telegram import Update, BotCommand
@@ -305,27 +306,35 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         drive_status = "❌ 未設定"
     if notion_is_available():
-        notion_ok, notion_errors = validate_database_schema()
-        if notion_ok:
-            notion_status = "✅ 已連線"
-        else:
-            notion_status = f"⚠️ 設定異常：{notion_errors[0]}"
+        try:
+            notion_ok, notion_errors = await asyncio.wait_for(
+                asyncio.to_thread(validate_database_schema),
+                timeout=8,
+            )
+            if notion_ok:
+                notion_status = "✅ 已連線"
+            else:
+                notion_status = f"⚠️ 設定異常：{notion_errors[0]}"
+        except asyncio.TimeoutError:
+            notion_status = "⚠️ 狀態檢查逾時（>8s）"
+        except Exception as e:
+            notion_status = f"⚠️ 狀態檢查失敗：{type(e).__name__}: {e}"
     else:
         notion_status = "❌ 未設定"
 
     lines = [
-        "🤖 **Bot 運作狀態**\n",
+        "🤖 Bot 運作狀態\n",
         f" ⏰ 目前時間：{now.strftime('%Y-%m-%d %H:%M:%S')} (台灣)",
         f" 📁 Google Drive：{drive_status}",
         f" 🗂 Notion：{notion_status}",
         f" 📊 已註冊排程：{len(jobs)} 個",
         "",
-        "**排程任務：**",
+        "排程任務：",
     ]
     for job in jobs:
         lines.append(f" • {job['name']} → 下次執行: {job['next_run']}")
 
-    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+    await update.message.reply_text("\n".join(lines), parse_mode=None)
 
 
 def register_command_handlers(app: Application):
