@@ -2,6 +2,48 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-04-25] Google Drive Diagnostics Hardening
+
+### Summary
+
+Google Drive upload was still falling back to local storage in production. This update makes
+Drive auth failures visible in `/status` and supports safer OAuth credential validation.
+
+### Changes
+
+- `config.py` / `.env.example`
+  - Add `GOOGLE_OAUTH_TOKEN_JSON`
+- `services/gdrive_service.py`
+  - Add `DriveStatus` diagnostics
+  - Parse OAuth token using `Credentials.from_authorized_user_info`
+  - Require refresh-capable OAuth fields: `refresh_token`, `client_id`, `client_secret`
+  - Detect accidental OAuth client-secret JSON pasted into `GOOGLE_OAUTH_TOKEN_JSON`
+  - Validate scopes and refresh expired OAuth tokens
+  - Add `supportsAllDrives=True` to Drive create/update/list calls
+  - Add optional remote folder validation for `/status`
+- `handlers/command_handlers.py`
+  - `/status` now shows Google Drive auth type and actionable configuration errors
+
+### Verification
+
+- Python compile check: OK
+- Local Drive status with no local credentials now reports a clear missing-credentials error
+
+### Deployment Notes
+
+After deploying, run `/status`. If Google Drive still shows a warning, update Zeabur's
+`GOOGLE_OAUTH_TOKEN_JSON` with an authorized-user token JSON that includes:
+
+```
+refresh_token
+client_id
+client_secret
+token_uri
+scopes
+```
+
+---
+
 ## [2026-04-25] Zeabur Production Deployment Verified
 
 ### Summary

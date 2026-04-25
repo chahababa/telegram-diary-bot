@@ -105,7 +105,11 @@
 - `/diary` 產生日記後，Google Drive 上傳仍失敗並 fallback 到本地：
   - `/app/backup_diaries/diary-2026-04-25.md`
 - 這是既有 Google OAuth token 問題，與 Notion 設定無關
-- 下一步：檢查 Zeabur 的 `GOOGLE_OAUTH_TOKEN_JSON` 或重新整理 Google Drive auth 流程
+- 已在程式中補強 Google Drive 診斷：
+  - `/status` 會顯示 Drive auth type 或具體設定錯誤
+  - OAuth token 會檢查 `refresh_token`、`client_id`、`client_secret`、scope
+  - Drive API create/update/list 已加上 `supportsAllDrives=True`
+- 下一步：部署此修補後，執行 `/status` 讀取實際 Drive 錯誤，並更新 Zeabur 的 `GOOGLE_OAUTH_TOKEN_JSON`
 
 ---
 
@@ -177,7 +181,7 @@ telegram-diary-bot/
 ## 六、未來可以做的改進 🚀
 
 ### 短期（比較簡單）
-1. **修 Google Drive 上傳**：檢查 `GOOGLE_OAUTH_TOKEN_JSON` 或改回穩定的 Service Account 流程
+1. **部署 Google Drive 診斷修補**：推上 GitHub 後 Zeabur redeploy，再用 `/status` 讀取實際 Drive 錯誤
 2. **語音訊息真實測試**：確認 Whisper 轉文字在 Zeabur production 仍正常
 3. **Notion token 安全輪替**：重新產生 token，更新 Zeabur 與本機 `.env`
 4. **排程熱更新**：修改提醒時間後不用重啟 Bot 就能生效

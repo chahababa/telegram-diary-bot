@@ -6,6 +6,7 @@ import json
 import logging
 import tempfile
 import os
+from dataclasses import dataclass
 from pathlib import Path
 
 from google.oauth2 import service_account
@@ -23,72 +24,144 @@ logger = logging.getLogger(__name__)
 SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 
 
+@dataclass
+class DriveStatus:
+    """Google Drive 設定/連線狀態。"""
+    configured: bool
+    available: bool
+    auth_type: str
+    message: str
+
+
+def _load_json_env(value: str, name: str) -> dict:
+    """解析 JSON 環境變數，並提供可讀錯誤。"""
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"{name} 不是合法 JSON: {e}") from e
+    if not isinstance(parsed, dict):
+        raise ValueError(f"{name} 必須是 JSON object")
+    return parsed
+
+
+def _build_oauth_credentials() -> OAuthCredentials | None:
+    """從 GOOGLE_OAUTH_TOKEN_JSON 建立 OAuth credentials。"""
+    oauth_token_json = config.GOOGLE_OAUTH_TOKEN_JSON or os.getenv("GOOGLE_OAUTH_TOKEN_JSON", "")
+    if not oauth_token_json:
+        return None
+
+    token_info = _load_json_env(oauth_token_json, "GOOGLE_OAUTH_TOKEN_JSON")
+    if "installed" in token_info or "web" in token_info:
+        raise ValueError(
+            "GOOGLE_OAUTH_TOKEN_JSON 看起來是 OAuth client secret，不是 token。"
+            "請提供 authorized-user token JSON（含 refresh_token/client_id/client_secret/token_uri）。"
+        )
+
+    missing = [
+        key for key in ("refresh_token", "client_id", "client_secret")
+        if not token_info.get(key)
+    ]
+    if missing:
+        raise ValueError(
+            "GOOGLE_OAUTH_TOKEN_JSON 缺少可刷新 token 必要欄位: "
+            + ", ".join(missing)
+        )
+
+    creds = OAuthCredentials.from_authorized_user_info(token_info, scopes=SCOPES)
+    if not creds.has_scopes(SCOPES):
+        raise ValueError(f"GOOGLE_OAUTH_TOKEN_JSON scope 不足，至少需要 {SCOPES[0]}")
+
+    if not creds.valid:
+        if not creds.refresh_token:
+            raise ValueError("OAuth token 已失效且沒有 refresh_token")
+        creds.refresh(Request())
+    return creds
+
+
+def _build_service_account_credentials():
+    """從 GOOGLE_CREDENTIALS_JSON 或本機 credentials.json 建立 Service Account credentials。"""
+    credentials_json = config.GOOGLE_CREDENTIALS_JSON or os.getenv("GOOGLE_CREDENTIALS_JSON", "")
+    if credentials_json:
+        info = _load_json_env(credentials_json, "GOOGLE_CREDENTIALS_JSON")
+        return service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
+
+    credentials_path = Path(config.GOOGLE_CREDENTIALS_FILE)
+    if credentials_path.is_file():
+        return service_account.Credentials.from_service_account_file(
+            config.GOOGLE_CREDENTIALS_FILE,
+            scopes=SCOPES,
+        )
+
+    return None
+
+
+def _get_drive_credentials():
+    """取得 Google Drive credentials，優先使用 OAuth，再退回 Service Account。"""
+    oauth_error = None
+    try:
+        creds = _build_oauth_credentials()
+        if creds:
+            return creds, "oauth"
+    except Exception as e:
+        oauth_error = e
+        logger.warning(f"GOOGLE_OAUTH_TOKEN_JSON 無法使用: {e}")
+
+    try:
+        creds = _build_service_account_credentials()
+        if creds:
+            return creds, "service_account"
+    except Exception as e:
+        logger.warning(f"GOOGLE_CREDENTIALS_JSON / credentials file 無法使用: {e}")
+        if oauth_error:
+            raise RuntimeError(f"OAuth 失敗: {oauth_error}; Service Account 失敗: {e}") from e
+        raise
+
+    if oauth_error:
+        raise RuntimeError(f"OAuth 設定存在但無法使用: {oauth_error}") from oauth_error
+    raise RuntimeError("Google Drive 未設定 OAuth token、Service Account JSON 或 credentials.json")
+
+
 def _get_drive_service():
     """建立 Google Drive API 服務實例（支援 OAuth Token 或 Service Account）"""
-
-    # 1) 優先使用 GOOGLE_OAUTH_TOKEN_JSON（OAuth 用戶端憑證）
-    oauth_token_json = os.getenv("GOOGLE_OAUTH_TOKEN_JSON", "")
-    if oauth_token_json:
-        try:
-            token_info = json.loads(oauth_token_json)
-            creds = OAuthCredentials(
-                token=token_info.get("token"),
-                refresh_token=token_info.get("refresh_token"),
-                token_uri=token_info.get("token_uri", "https://oauth2.googleapis.com/token"),
-                client_id=token_info.get("client_id"),
-                client_secret=token_info.get("client_secret"),
-                scopes=token_info.get("scopes") or SCOPES,
-            )
-            # 如果 token 過期，自動刷新
-            if creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-            return build("drive", "v3", credentials=creds)
-        except Exception as e:
-            logger.warning(f"GOOGLE_OAUTH_TOKEN_JSON 解析失敗，嘗試其他方式: {e}")
-
-    # 2) 其次使用 GOOGLE_CREDENTIALS_JSON（Service Account）
-    credentials_json = os.getenv("GOOGLE_CREDENTIALS_JSON", "")
-    if credentials_json:
-        try:
-            info = json.loads(credentials_json)
-            creds = service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
-            return build("drive", "v3", credentials=creds)
-        except Exception as e:
-            logger.warning(f"GOOGLE_CREDENTIALS_JSON 解析失敗: {e}")
-
-    # 3) 最後嘗試本地檔案（本地開發用）
-    creds = service_account.Credentials.from_service_account_file(
-        config.GOOGLE_CREDENTIALS_FILE,
-        scopes=SCOPES,
-    )
+    creds, _auth_type = _get_drive_credentials()
     return build("drive", "v3", credentials=creds)
 
 
 def has_drive_credentials() -> bool:
     """檢查 Google Drive 憑證是否真的存在且可被使用。"""
+    return get_drive_status(validate_remote=False).available
 
-    # 檢查 OAuth Token
-    oauth_token_json = os.getenv("GOOGLE_OAUTH_TOKEN_JSON", "")
-    if oauth_token_json:
-        try:
-            json.loads(oauth_token_json)
-            return True
-        except json.JSONDecodeError:
-            logger.warning("GOOGLE_OAUTH_TOKEN_JSON 不是合法 JSON")
 
-    # 檢查 Service Account JSON
-    credentials_json = config.GOOGLE_CREDENTIALS_JSON or os.getenv("GOOGLE_CREDENTIALS_JSON", "")
-    if credentials_json:
-        try:
-            json.loads(credentials_json)
-            return True
-        except json.JSONDecodeError:
-            logger.warning("GOOGLE_CREDENTIALS_JSON 不是合法 JSON")
-            return False
+def get_drive_status(validate_remote: bool = False) -> DriveStatus:
+    """
+    取得 Google Drive 狀態。
 
-    # 檢查本地檔案
-    credentials_path = Path(config.GOOGLE_CREDENTIALS_FILE)
-    return credentials_path.is_file()
+    validate_remote=True 時會實際呼叫 Drive API，檢查 credentials 與資料夾可否讀取。
+    """
+    if not config.GOOGLE_DRIVE_FOLDER_ID:
+        return DriveStatus(False, False, "none", "缺少 GOOGLE_DRIVE_FOLDER_ID")
+
+    try:
+        creds, auth_type = _get_drive_credentials()
+        if not validate_remote:
+            return DriveStatus(True, True, auth_type, "credentials 可建立")
+
+        service = build("drive", "v3", credentials=creds)
+        folder = service.files().get(
+            fileId=config.GOOGLE_DRIVE_FOLDER_ID,
+            fields="id,name,mimeType",
+            supportsAllDrives=True,
+        ).execute()
+        if folder.get("mimeType") != "application/vnd.google-apps.folder":
+            return DriveStatus(
+                True,
+                False,
+                auth_type,
+                "GOOGLE_DRIVE_FOLDER_ID 不是資料夾",
+            )
+        return DriveStatus(True, True, auth_type, f"資料夾可讀取: {folder.get('name')}")
+    except Exception as e:
+        return DriveStatus(True, False, "unknown", str(e))
 
 
 async def upload_diary(date_str: str, diary_content: str, max_retries: int = 3) -> str | None:
@@ -139,6 +212,7 @@ async def upload_diary(date_str: str, diary_content: str, max_retries: int = 3) 
                     body=file_metadata,
                     media_body=media,
                     fields="id, webViewLink",
+                    supportsAllDrives=True,
                 )
 
                 file = await asyncio.to_thread(request.execute)
@@ -219,7 +293,12 @@ async def upload_diary_overwrite(date_str: str, diary_content: str, max_retries:
                     query += f" and '{config.GOOGLE_DRIVE_FOLDER_ID}' in parents"
 
                 search_results = await asyncio.to_thread(
-                    lambda: service.files().list(q=query, fields="files(id)").execute()
+                    lambda: service.files().list(
+                        q=query,
+                        fields="files(id)",
+                        includeItemsFromAllDrives=True,
+                        supportsAllDrives=True,
+                    ).execute()
                 )
                 existing_files = search_results.get("files", [])
 
@@ -232,6 +311,7 @@ async def upload_diary_overwrite(date_str: str, diary_content: str, max_retries:
                         fileId=file_id,
                         media_body=media,
                         fields="id",
+                        supportsAllDrives=True,
                     )
                     result = await asyncio.to_thread(request.execute)
                     logger.info(f"日記覆蓋更新成功：{filename}（ID: {result.get('id')}）")
@@ -249,6 +329,7 @@ async def upload_diary_overwrite(date_str: str, diary_content: str, max_retries:
                         body=file_metadata,
                         media_body=media,
                         fields="id",
+                        supportsAllDrives=True,
                     )
                     result = await asyncio.to_thread(request.execute)
                     logger.info(f"日記新建成功：{filename}（ID: {result.get('id')}）")

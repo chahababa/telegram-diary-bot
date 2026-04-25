@@ -24,6 +24,7 @@ OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
 GOOGLE_DRIVE_FOLDER_ID: str = os.getenv("GOOGLE_DRIVE_FOLDER_ID", "")
 GOOGLE_CREDENTIALS_FILE: str = os.getenv("GOOGLE_CREDENTIALS_FILE", "credentials.json")
 GOOGLE_CREDENTIALS_JSON: str = os.getenv("GOOGLE_CREDENTIALS_JSON", "")  # Zeabur 雲端部署用
+GOOGLE_OAUTH_TOKEN_JSON: str = os.getenv("GOOGLE_OAUTH_TOKEN_JSON", "")  # OAuth authorized-user token JSON
 
 
 # === Google Calendar ===
