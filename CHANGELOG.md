@@ -2,6 +2,43 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-04-25] Zeabur Production Deployment Verified
+
+### Summary
+
+The latest GitHub `main` was deployed to Zeabur and verified through the live Telegram bot.
+Notion sync is now working in production.
+
+### Deployment
+
+- Zeabur build triggered: `69ec81d4...`
+- Service state: Running
+- Environment variables verified:
+  - `NOTION_TOKEN` set as a private variable
+  - `NOTION_DIARY_DB_ID=33f6f4831a6180149b6cef91d820981e`
+  - `NOTION_DIARY_DATA_SOURCE_ID=33f6f483-1a61-807a-b9c4-000bfafd2d49`
+
+### Live Verification
+
+- `/status`: OK
+  - Bot online
+  - Notion: connected
+  - Google Drive: connected
+  - 8 scheduled jobs registered
+- `/diary`: OK
+  - Generated the 2026-04-25 diary in Markdown
+- `/sync`: OK
+  - `2026-04-25` diary successfully synced to Notion
+
+### Known Issue
+
+- Google Drive upload still fell back to local storage:
+  - `/app/backup_diaries/diary-2026-04-25.md`
+- This appears to be the existing Google OAuth token issue and is separate from the Notion deployment.
+- Next step: inspect and update `GOOGLE_OAUTH_TOKEN_JSON` / Google Drive auth flow.
+
+---
+
 ## [2026-04-25] Notion Sync Hardening + Google Drive Recovery
 
 ### Summary

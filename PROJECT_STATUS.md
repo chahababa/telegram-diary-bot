@@ -18,7 +18,7 @@
 
 ### Git 狀態
 - 目前分支：`main`
-- 最新已推送 commit：`4949e24 feat: harden Notion diary sync`
+- 最新已推送 commit：`b9da678 docs: sync project status and next steps`
 - 遠端狀態：本機 `main` 已同步 `origin/main`
 - 注意：本機有一個瀏覽器測試用暫存檔 `browser-control-test.html`，未加入 Git，也不影響部署
 
@@ -30,6 +30,8 @@
 - 若本機 `notion_sync_log` 不存在，會先用 `日期` 查 Notion，避免重複建立同一天頁面
 - 更新既有 Notion 頁面時，會分頁清除舊 blocks 再寫入新內容
 - Google Drive 上傳近期已補上 OAuth token 支援與 `gdrive_service.py` 縮排修復
+- Zeabur 已完成 Redeploy + Restart，服務已恢復 Running
+- Telegram live test 已確認 `/status`、`/diary`、`/sync` 都正常
 
 ### 已驗證
 - `python -m compileall`：通過
@@ -37,6 +39,10 @@
 - Notion 端到端建立/讀取/封存測試：通過
 - Embedding 儲存：通過（測試寫入 3 個 chunks）
 - GitHub push：完成
+- Zeabur build `69ec81d4...`：完成
+- Telegram `/status`：Notion 已連線，8 個排程已註冊
+- Telegram `/diary`：成功產出 2026-04-25 日記
+- Telegram `/sync`：成功同步 2026-04-25 日記到 Notion
 
 ---
 
@@ -84,23 +90,22 @@
 
 ## 三、尚未完成 / 需要確認的事項 🔧
 
-### Zeabur 環境變數
-GitHub 已推送完成，但 Zeabur 需要設定/確認以下環境變數後重啟或重新部署：
+### Zeabur / Notion 上線狀態
+- `NOTION_TOKEN`：已在 Zeabur 設為 Private 環境變數
+- `NOTION_DIARY_DB_ID`：已設定
+- `NOTION_DIARY_DATA_SOURCE_ID`：已設定
+- Redeploy：已觸發
+- Restart：已執行
+- 服務狀態：Running
+- Notion 同步：實際寫入成功
 
-```
-NOTION_TOKEN=<rotated Notion integration token>
-NOTION_DIARY_DB_ID=33f6f4831a6180149b6cef91d820981e
-NOTION_DIARY_DATA_SOURCE_ID=33f6f483-1a61-807a-b9c4-000bfafd2d49
-```
+> 安全提醒：設定過程中曾在對話裡貼過舊 Notion token。雖然目前已可運作，仍建議之後到 Notion Integration 再 rotate 一次 token，並更新 Zeabur 與本機 `.env`。
 
-> 重要：設定過程中曾在對話裡貼過 Notion token，正式上線前建議到 Notion Integration 重新產生 token，再填入本機 `.env` 與 Zeabur。
-
-### 部署後待測
-- 在 Telegram 執行 `/status`，確認 Notion 顯示 `已連線`
-- 傳一則文字記錄後執行 `/diary`，確認日記會寫入 Notion
-- 執行 `/sync 2026-04-25` 測試指定日期同步
-- 執行一次語音訊息測試，確認 Whisper 轉文字仍正常
-- 若使用 Google Drive，上傳功能需在 Zeabur 環境中再測一次
+### 目前唯一已知問題
+- `/diary` 產生日記後，Google Drive 上傳仍失敗並 fallback 到本地：
+  - `/app/backup_diaries/diary-2026-04-25.md`
+- 這是既有 Google OAuth token 問題，與 Notion 設定無關
+- 下一步：檢查 Zeabur 的 `GOOGLE_OAUTH_TOKEN_JSON` 或重新整理 Google Drive auth 流程
 
 ---
 
@@ -172,9 +177,9 @@ telegram-diary-bot/
 ## 六、未來可以做的改進 🚀
 
 ### 短期（比較簡單）
-1. **Zeabur Notion 環境變數上線**：填入 rotated `NOTION_TOKEN`、`NOTION_DIARY_DB_ID`、`NOTION_DIARY_DATA_SOURCE_ID`，重新部署
-2. **Telegram 真實流程測試**：測 `/status`、文字記錄、語音記錄、`/diary`、`/sync`
-3. **確認 Google Drive 上傳路徑**：決定用 OAuth token 或 Service Account，整理 Zeabur 變數
+1. **修 Google Drive 上傳**：檢查 `GOOGLE_OAUTH_TOKEN_JSON` 或改回穩定的 Service Account 流程
+2. **語音訊息真實測試**：確認 Whisper 轉文字在 Zeabur production 仍正常
+3. **Notion token 安全輪替**：重新產生 token，更新 Zeabur 與本機 `.env`
 4. **排程熱更新**：修改提醒時間後不用重啟 Bot 就能生效
 5. **日記範本預覽**：設定新範本後，用假資料先產出一篇預覽版
 
