@@ -3,11 +3,13 @@ Notion 服務模組 — 負責將日記推送至 Notion 資料庫
 """
 
 import logging
+import asyncio
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from typing import Optional
+from typing import Any, Callable, Optional
 
 from notion_client import Client
+from notion_client.errors import APIResponseError
 from openai import AsyncOpenAI
 
 import config as _cfg
@@ -20,12 +22,14 @@ _ALLOWED_TAGS = ["工作", "生活", "旅行", "美食", "健康", "反思"]
 
 # 每個 Notion paragraph block 的最大字元數
 _BLOCK_MAX_CHARS = 2000
+_MAX_NOTION_RETRIES = 4
 
 # ── 模組層級單例 ──────────────────────────────────
 
 _notion: Optional[Client] = None
 _ai: Optional[AsyncOpenAI] = None
 _db: Optional[Database] = None
+_data_source_id: Optional[str] = None
 
 
 def _get_notion() -> Client:
@@ -52,11 +56,156 @@ def _get_db() -> Database:
     return _db
 
 
+def _get_data_source_id() -> str:
+    """取得日記資料庫的 data source ID（新版 Notion API 建頁需使用）。"""
+    global _data_source_id
+    if _data_source_id:
+        return _data_source_id
+
+    if _cfg.NOTION_DIARY_DATA_SOURCE_ID:
+        _data_source_id = _cfg.NOTION_DIARY_DATA_SOURCE_ID
+        return _data_source_id
+
+    if not _cfg.NOTION_DIARY_DB_ID:
+        raise RuntimeError("NOTION_DIARY_DB_ID 未設定")
+
+    database = _get_notion().databases.retrieve(database_id=_cfg.NOTION_DIARY_DB_ID)
+    data_sources = database.get("data_sources", [])
+    if not data_sources:
+        raise RuntimeError("Notion database 找不到 data source")
+    if len(data_sources) > 1:
+        raise RuntimeError("Notion database 有多個 data source，請設定 NOTION_DIARY_DATA_SOURCE_ID")
+
+    _data_source_id = data_sources[0]["id"]
+    return _data_source_id
+
+
 # ── 公開 API ──────────────────────────────────────
 
 def is_available() -> bool:
-    """檢查 Notion 整合是否已設定（Token 不為空）"""
-    return bool(_cfg.NOTION_TOKEN)
+    """檢查 Notion 整合是否已設定。"""
+    return bool(_cfg.NOTION_TOKEN and (_cfg.NOTION_DIARY_DATA_SOURCE_ID or _cfg.NOTION_DIARY_DB_ID))
+
+
+def validate_database_schema() -> tuple[bool, list[str]]:
+    """檢查 Notion 日記資料庫是否有程式需要的欄位與型別。"""
+    if not is_available():
+        return False, ["NOTION_TOKEN 與 NOTION_DIARY_DB_ID / NOTION_DIARY_DATA_SOURCE_ID 需先設定"]
+
+    required = {
+        "標題": "title",
+        "日期": "date",
+        "心情分數": "select",
+        "標籤": "multi_select",
+    }
+    try:
+        data_source = _get_notion().data_sources.retrieve(data_source_id=_get_data_source_id())
+        properties = data_source.get("properties", {})
+    except Exception as e:
+        return False, [f"無法讀取 Notion data source: {e}"]
+
+    errors = []
+    for name, expected_type in required.items():
+        actual = properties.get(name, {}).get("type")
+        if actual != expected_type:
+            errors.append(f"{name} 需為 {expected_type}，目前是 {actual or '不存在'}")
+    return not errors, errors
+
+
+async def _call_notion(method: Callable[..., Any], *args, **kwargs) -> Any:
+    """呼叫 Notion API，遇到 rate limit 或暫時性錯誤時退避重試。"""
+    for attempt in range(_MAX_NOTION_RETRIES):
+        try:
+            return method(*args, **kwargs)
+        except APIResponseError as e:
+            is_retryable = e.status == 429 or e.status >= 500
+            is_last_attempt = attempt == _MAX_NOTION_RETRIES - 1
+            if not is_retryable or is_last_attempt:
+                raise
+
+            retry_after = e.headers.get("retry-after")
+            if retry_after:
+                try:
+                    delay = float(retry_after)
+                except ValueError:
+                    delay = 1.0
+            else:
+                delay = min(2 ** attempt, 8)
+
+            logger.warning(
+                "Notion API 暫時失敗，準備重試 "
+                f"(status={e.status}, code={e.code}, attempt={attempt + 1}/{_MAX_NOTION_RETRIES}, delay={delay}s)"
+            )
+            await asyncio.sleep(delay)
+
+
+async def _list_child_blocks(page_id: str) -> list[dict]:
+    """分頁取回頁面第一層 blocks。"""
+    notion = _get_notion()
+    blocks: list[dict] = []
+    start_cursor: Optional[str] = None
+
+    while True:
+        params: dict[str, Any] = {"block_id": page_id, "page_size": 100}
+        if start_cursor:
+            params["start_cursor"] = start_cursor
+
+        response = await _call_notion(notion.blocks.children.list, **params)
+        blocks.extend(response.get("results", []))
+
+        if not response.get("has_more"):
+            break
+        start_cursor = response.get("next_cursor")
+        if not start_cursor:
+            break
+
+    return blocks
+
+
+async def _find_page_id_by_date(diary_date: str) -> Optional[str]:
+    """用日期從 Notion 找既有頁面，避免本機同步紀錄遺失時重複建立。"""
+    notion = _get_notion()
+    response = await _call_notion(
+        notion.data_sources.query,
+        data_source_id=_get_data_source_id(),
+        filter={
+            "property": "日期",
+            "date": {
+                "equals": diary_date,
+            },
+        },
+        page_size=2,
+    )
+    pages = response.get("results", [])
+    if not pages:
+        return None
+    if len(pages) > 1:
+        logger.warning(f"Notion 已有多個 {diary_date} 頁面，將更新第一筆以避免再建立重複頁")
+    return pages[0]["id"]
+
+
+async def _append_blocks(page_id: str, content_blocks: list[dict]) -> None:
+    """分批追加 blocks。"""
+    notion = _get_notion()
+    for i in range(0, len(content_blocks), 100):
+        await _call_notion(
+            notion.blocks.children.append,
+            block_id=page_id,
+            children=content_blocks[i:i + 100],
+        )
+
+
+async def _replace_page_blocks(page_id: str, content_blocks: list[dict]) -> None:
+    """刪除頁面舊 blocks 後寫入新內容。"""
+    notion = _get_notion()
+    old_blocks = await _list_child_blocks(page_id)
+    for block in old_blocks:
+        try:
+            await _call_notion(notion.blocks.delete, block_id=block["id"])
+        except Exception as del_err:
+            logger.warning(f"刪除舊 block 失敗 ({block['id']}): {del_err}")
+
+    await _append_blocks(page_id, content_blocks)
 
 
 async def extract_tags(diary_content: str) -> list[str]:
@@ -193,6 +342,8 @@ async def push_diary(
         ).fetchone()
 
     existing_page_id: Optional[str] = row["notion_page_id"] if row else None
+    if not existing_page_id:
+        existing_page_id = await _find_page_id_by_date(diary_date)
 
     # ── 萃取標題與標籤 ────────────────────────────
     title = await extract_title(diary_content)
@@ -229,42 +380,28 @@ async def push_diary(
         if existing_page_id:
             # ── 更新既有頁面 ──────────────────────
             # 更新屬性
-            notion.pages.update(
+            await _call_notion(
+                notion.pages.update,
                 page_id=existing_page_id,
                 properties=properties,
             )
-            # 清除舊 blocks，再重新寫入
-            old_blocks = notion.blocks.children.list(block_id=existing_page_id)
-            for block in old_blocks.get("results", []):
-                try:
-                    notion.blocks.delete(block_id=block["id"])
-                except Exception as del_err:
-                    logger.warning(f"刪除舊 block 失敗 ({block['id']}): {del_err}")
 
-            # 寫入新 blocks（Notion 一次最多 100 個）
-            for i in range(0, len(content_blocks), 100):
-                notion.blocks.children.append(
-                    block_id=existing_page_id,
-                    children=content_blocks[i:i + 100],
-                )
+            await _replace_page_blocks(existing_page_id, content_blocks)
             page_id = existing_page_id
             logger.info(f"Notion 頁面已更新 — user={user_id} date={diary_date} page={page_id}")
 
         else:
             # ── 建立新頁面 ────────────────────────
-            response = notion.pages.create(
-                parent={"database_id": _cfg.NOTION_DIARY_DB_ID},
+            response = await _call_notion(
+                notion.pages.create,
+                parent={"type": "data_source_id", "data_source_id": _get_data_source_id()},
                 properties=properties,
                 children=content_blocks[:100],  # 建立時最多帶 100 個 blocks
             )
             page_id = response["id"]
 
             # 若 blocks 超過 100 個，分批追加
-            for i in range(100, len(content_blocks), 100):
-                notion.blocks.children.append(
-                    block_id=page_id,
-                    children=content_blocks[i:i + 100],
-                )
+            await _append_blocks(page_id, content_blocks[100:])
             logger.info(f"Notion 頁面已建立 — user={user_id} date={diary_date} page={page_id}")
 
         # ── 寫入同步紀錄 ──────────────────────────

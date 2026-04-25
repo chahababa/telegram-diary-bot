@@ -61,6 +61,7 @@ LOCAL_BACKUP_DIR: str = os.getenv("LOCAL_BACKUP_DIR", str(Path(__file__).parent 
 # === Notion ===
 NOTION_TOKEN: str = os.getenv("NOTION_TOKEN", "")
 NOTION_DIARY_DB_ID: str = os.getenv("NOTION_DIARY_DB_ID", "")
+NOTION_DIARY_DATA_SOURCE_ID: str = os.getenv("NOTION_DIARY_DATA_SOURCE_ID", "")
 
 
 def validate_config() -> list[str]:

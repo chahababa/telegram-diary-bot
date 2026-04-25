@@ -289,6 +289,7 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """處理 /status 指令 — 查看 Bot 運作狀態"""
     from services.scheduler_service import get_now, get_jobs_info
     from services.gdrive_service import is_available
+    from services.notion_service import is_available as notion_is_available, validate_database_schema
     from models.database import Database
 
     db: Database = context.bot_data["db"]
@@ -297,11 +298,20 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     jobs = get_jobs_info()
 
     drive_status = "✅ 已連線" if is_available() else "❌ 未設定"
+    if notion_is_available():
+        notion_ok, notion_errors = validate_database_schema()
+        if notion_ok:
+            notion_status = "✅ 已連線"
+        else:
+            notion_status = f"⚠️ 設定異常：{notion_errors[0]}"
+    else:
+        notion_status = "❌ 未設定"
 
     lines = [
         "🤖 **Bot 運作狀態**\n",
         f" ⏰ 目前時間：{now.strftime('%Y-%m-%d %H:%M:%S')} (台灣)",
         f" 📁 Google Drive：{drive_status}",
+        f" 🗂 Notion：{notion_status}",
         f" 📊 已註冊排程：{len(jobs)} 個",
         "",
         "**排程任務：**",
