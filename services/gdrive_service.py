@@ -21,7 +21,7 @@ import config
 logger = logging.getLogger(__name__)
 
 # Google Drive API 範圍
-SCOPES = ["https://www.googleapis.com/auth/drive.file"]
+SCOPES = ["https://www.googleapis.com/auth/drive"]
 
 
 @dataclass
