@@ -2,6 +2,45 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-04-25] Google Drive Service Account Migration
+
+### Summary
+
+Production Google Drive upload was migrated from OAuth refresh token auth to a Google Service Account.
+The live bot now reports `Google Drive: connected (service_account)`.
+
+### Production Changes
+
+- Google Cloud project: `haochu-bom`
+- Google Drive API enabled
+- Service Account created:
+  - `telegram-diary-bot-drive@haochu-bom.iam.gserviceaccount.com`
+- Target folder shared with the Service Account as Editor:
+  - Folder name: `日記逐字稿`
+  - Folder ID: `1IPYqDxeoDGbo5ANNR2ggeuNx_1o3SUS6`
+- Zeabur:
+  - `GOOGLE_CREDENTIALS_JSON` set as a private Service Account JSON secret
+  - `GOOGLE_OAUTH_TOKEN_JSON` kept but cleared
+
+### Code Changes
+
+- `services/gdrive_service.py`
+  - `SCOPES` broadened to `https://www.googleapis.com/auth/drive`
+  - Service Account credentials are now the primary auth path
+  - OAuth authorized-user token remains as a legacy fallback only
+- Docs now describe Service Account as the recommended Google Drive deployment path
+- Added unit tests for Google Drive credential selection
+
+### Verification
+
+- Zeabur redeploy: OK
+- Telegram `/status`: OK
+  - Google Drive: connected (`service_account`)
+  - Notion: connected
+  - 8 scheduler jobs registered
+
+---
+
 ## [2026-04-25] Google Drive Diagnostics Hardening
 
 ### Summary

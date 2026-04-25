@@ -32,6 +32,7 @@
 - Google Drive 上傳近期已補上 OAuth token 支援與 `gdrive_service.py` 縮排修復
 - Zeabur 已完成 Redeploy + Restart，服務已恢復 Running
 - Telegram live test 已確認 `/status`、`/diary`、`/sync` 都正常
+- Google Drive 已從 OAuth refresh token 遷移到 Service Account
 
 ### 已驗證
 - `python -m compileall`：通過
@@ -43,6 +44,7 @@
 - Telegram `/status`：Notion 已連線，8 個排程已註冊
 - Telegram `/diary`：成功產出 2026-04-25 日記
 - Telegram `/sync`：成功同步 2026-04-25 日記到 Notion
+- Telegram `/status`：Google Drive 已連線（service_account）
 
 ---
 
@@ -101,15 +103,18 @@
 
 > 安全提醒：設定過程中曾在對話裡貼過舊 Notion token。雖然目前已可運作，仍建議之後到 Notion Integration 再 rotate 一次 token，並更新 Zeabur 與本機 `.env`。
 
-### 目前唯一已知問題
-- `/diary` 產生日記後，Google Drive 上傳仍失敗並 fallback 到本地：
-  - `/app/backup_diaries/diary-2026-04-25.md`
-- 這是既有 Google OAuth token 問題，與 Notion 設定無關
-- 已在程式中補強 Google Drive 診斷：
-  - `/status` 會顯示 Drive auth type 或具體設定錯誤
-  - OAuth token 會檢查 `refresh_token`、`client_id`、`client_secret`、scope
-  - Drive API create/update/list 已加上 `supportsAllDrives=True`
-- 下一步：部署此修補後，執行 `/status` 讀取實際 Drive 錯誤，並更新 Zeabur 的 `GOOGLE_OAUTH_TOKEN_JSON`
+### Google Drive 上線狀態
+- 已改用 Google Service Account，取代不穩定的 OAuth refresh token
+- Google Cloud project：`haochu-bom`
+- Service Account：`telegram-diary-bot-drive@haochu-bom.iam.gserviceaccount.com`
+- 目標 Drive 資料夾：`日記逐字稿`
+- Folder ID：`1IPYqDxeoDGbo5ANNR2ggeuNx_1o3SUS6`
+- Zeabur `GOOGLE_CREDENTIALS_JSON`：已設為 Private/Secret
+- Zeabur `GOOGLE_OAUTH_TOKEN_JSON`：key 保留但值清空，作為 legacy fallback
+
+### 目前待確認
+- 下一次 `/diary` 或排程產生日記時，確認 Google Drive 不再 fallback 到 `/app/backup_diaries`
+- 執行一次語音訊息測試，確認 Whisper 轉文字在 Zeabur production 仍正常
 
 ---
 
@@ -181,7 +186,7 @@ telegram-diary-bot/
 ## 六、未來可以做的改進 🚀
 
 ### 短期（比較簡單）
-1. **部署 Google Drive 診斷修補**：推上 GitHub 後 Zeabur redeploy，再用 `/status` 讀取實際 Drive 錯誤
+1. **Google Drive 實際上傳驗證**：下一篇日記產生後確認檔案出現在 `日記逐字稿`
 2. **語音訊息真實測試**：確認 Whisper 轉文字在 Zeabur production 仍正常
 3. **Notion token 安全輪替**：重新產生 token，更新 Zeabur 與本機 `.env`
 4. **排程熱更新**：修改提醒時間後不用重啟 Bot 就能生效

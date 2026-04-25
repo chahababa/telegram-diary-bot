@@ -36,14 +36,16 @@ TELEGRAM_BOT_TOKEN=你的Telegram Bot Token
 OPENAI_API_KEY=你的OpenAI API Key
 GOOGLE_DRIVE_FOLDER_ID=Google Drive 資料夾 ID（選用）
 GOOGLE_CREDENTIALS_FILE=credentials.json（選用）
-GOOGLE_CREDENTIALS_JSON=Service Account JSON（選用）
-GOOGLE_OAUTH_TOKEN_JSON=OAuth authorized-user token JSON（選用）
+GOOGLE_CREDENTIALS_JSON=Service Account JSON（建議主方案，選用）
+GOOGLE_OAUTH_TOKEN_JSON=OAuth authorized-user token JSON（legacy fallback，選用）
 NOTION_TOKEN=Notion Integration Token（選用）
 NOTION_DIARY_DB_ID=Notion 日記資料庫 ID（選用）
 NOTION_DIARY_DATA_SOURCE_ID=Notion 日記資料庫 Data Source ID（選用）
 ```
 
 2. Google Drive 上傳為選用功能，不設定的話日記會自動備份到本地 `backup_diaries/` 資料夾
+
+   雲端部署建議使用 Google Service Account：將目標 Drive 資料夾分享給 service account email（Editor 權限），並把完整 JSON key 貼到 `GOOGLE_CREDENTIALS_JSON`。
 
 3. Notion 同步為選用功能。若要啟用，請在 Notion database 中建立/確認以下欄位：
    - `標題`：Title

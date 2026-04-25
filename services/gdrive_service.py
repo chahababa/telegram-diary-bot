@@ -96,7 +96,16 @@ def _build_service_account_credentials():
 
 
 def _get_drive_credentials():
-    """取得 Google Drive credentials，優先使用 OAuth，再退回 Service Account。"""
+    """取得 Google Drive credentials，優先使用 Service Account，OAuth 僅作為 legacy fallback。"""
+    service_account_error = None
+    try:
+        creds = _build_service_account_credentials()
+        if creds:
+            return creds, "service_account"
+    except Exception as e:
+        service_account_error = e
+        logger.warning(f"GOOGLE_CREDENTIALS_JSON / credentials file 無法使用: {e}")
+
     oauth_error = None
     try:
         creds = _build_oauth_credentials()
@@ -106,23 +115,19 @@ def _get_drive_credentials():
         oauth_error = e
         logger.warning(f"GOOGLE_OAUTH_TOKEN_JSON 無法使用: {e}")
 
-    try:
-        creds = _build_service_account_credentials()
-        if creds:
-            return creds, "service_account"
-    except Exception as e:
-        logger.warning(f"GOOGLE_CREDENTIALS_JSON / credentials file 無法使用: {e}")
-        if oauth_error:
-            raise RuntimeError(f"OAuth 失敗: {oauth_error}; Service Account 失敗: {e}") from e
-        raise
-
+    if service_account_error and oauth_error:
+        raise RuntimeError(
+            f"Service Account 失敗: {service_account_error}; OAuth 失敗: {oauth_error}"
+        ) from oauth_error
+    if service_account_error:
+        raise RuntimeError(f"Service Account 設定存在但無法使用: {service_account_error}") from service_account_error
     if oauth_error:
         raise RuntimeError(f"OAuth 設定存在但無法使用: {oauth_error}") from oauth_error
     raise RuntimeError("Google Drive 未設定 OAuth token、Service Account JSON 或 credentials.json")
 
 
 def _get_drive_service():
-    """建立 Google Drive API 服務實例（支援 OAuth Token 或 Service Account）"""
+    """建立 Google Drive API 服務實例（Service Account 優先，OAuth legacy fallback）"""
     creds, _auth_type = _get_drive_credentials()
     return build("drive", "v3", credentials=creds)
 
