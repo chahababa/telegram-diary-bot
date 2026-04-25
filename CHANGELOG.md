@@ -2,6 +2,53 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-04-25] Notion Sync Hardening + Google Drive Recovery
+
+### Summary
+
+GitHub `main` is now up to date with the latest Notion sync work and recent Google Drive fixes.
+The Notion database `日記庫DB` was connected and verified end to end.
+
+### Changes
+
+- `services/notion_service.py`
+  - Support Notion's newer data source API via `NOTION_DIARY_DATA_SOURCE_ID`
+  - Create new diary pages with `data_source_id` instead of legacy `database_id`
+  - Add Notion schema validation for `標題`, `日期`, `心情分數`, and `標籤`
+  - Add retry/backoff handling for Notion `429` and `5xx` responses
+  - Query Notion by diary date when local `notion_sync_log` is missing, reducing duplicate pages
+  - Page through existing blocks before replacing content, instead of only deleting the first page of blocks
+- `handlers/command_handlers.py`
+  - `/status` now reports Notion connection/schema status
+- `config.py` / `.env.example`
+  - Add `NOTION_DIARY_DATA_SOURCE_ID`
+- Google Drive fixes already on `main`
+  - OAuth token support for Google Drive upload
+  - Indentation fix in `gdrive_service.py`
+
+### Verification
+
+- Local dependency install: OK (`numpy`, `notion-client`)
+- Python compile check: OK
+- Notion schema validation: OK
+- End-to-end Notion create/read/archive test: OK
+- Embedding storage test: OK (`embedding_rows: 3`)
+- GitHub push: OK (`4949e24 feat: harden Notion diary sync`)
+
+### Deployment Notes
+
+Set these variables in Zeabur, then restart/redeploy the service:
+
+```
+NOTION_TOKEN=<rotated Notion integration token>
+NOTION_DIARY_DB_ID=33f6f4831a6180149b6cef91d820981e
+NOTION_DIARY_DATA_SOURCE_ID=33f6f483-1a61-807a-b9c4-000bfafd2d49
+```
+
+The Notion token used during setup was pasted in chat, so rotate it before production use.
+
+---
+
 ## [2026-04-11] Sprint 0 — Notion 同步 + 語意搜尋環境建置
 
 ### Changes

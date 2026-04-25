@@ -1,6 +1,6 @@
 # 📔 Telegram 日記助理 Bot
 
-每天隨時透過文字或語音記錄生活片段，每晚自動彙整成結構化 Markdown 日記，並同步儲存至 Google Drive。
+每天隨時透過文字或語音記錄生活片段，每晚自動彙整成結構化 Markdown 日記，並同步儲存至 Notion 與 Google Drive。
 
 > 專為「板橋好初早餐」老闆打造的個人日記工具。
 
@@ -11,6 +11,7 @@
 - **定時提醒**：每天 09:00 / 12:00 / 15:00 / 18:00 / 21:00 提醒記日記
 - **23:00 結算問卷**：最重要的事 → 感恩 3 件 → 心情評分 → 補充
 - **00:00 自動日記**：AI (GPT-4o) 彙整成 Markdown，回傳 Telegram + 上傳 Google Drive
+- **Notion 同步**：自動建立/更新每日日記頁面，支援標題、日期、心情分數、標籤
 - **管理員指令**：在 Telegram 裡直接修改設定，不需要改程式碼
 - **補記功能**：可補記過去任意日期的記錄，並重新產出日記
 
@@ -35,9 +36,18 @@ TELEGRAM_BOT_TOKEN=你的Telegram Bot Token
 OPENAI_API_KEY=你的OpenAI API Key
 GOOGLE_DRIVE_FOLDER_ID=Google Drive 資料夾 ID（選用）
 GOOGLE_CREDENTIALS_FILE=credentials.json（選用）
+NOTION_TOKEN=Notion Integration Token（選用）
+NOTION_DIARY_DB_ID=Notion 日記資料庫 ID（選用）
+NOTION_DIARY_DATA_SOURCE_ID=Notion 日記資料庫 Data Source ID（選用）
 ```
 
 2. Google Drive 上傳為選用功能，不設定的話日記會自動備份到本地 `backup_diaries/` 資料夾
+
+3. Notion 同步為選用功能。若要啟用，請在 Notion database 中建立/確認以下欄位：
+   - `標題`：Title
+   - `日期`：Date
+   - `心情分數`：Select（`-2`、`-1`、`0`、`1`、`2`）
+   - `標籤`：Multi-select（`工作`、`生活`、`旅行`、`美食`、`健康`、`反思`）
 
 ## 啟動
 
@@ -57,6 +67,9 @@ python main.py
 | `/add 2026-04-03 內容` | 補記指定日期的一則記錄 |
 | `/status` | 查看 Bot 運作狀態 |
 | `/survey` | 手動開始問卷 |
+| `/sync` | 手動同步今天的日記到 Notion |
+| `/sync 2026-04-02` | 手動同步指定日期的日記到 Notion |
+| `/sync_all` | 同步所有已產生日記到 Notion |
 
 ### 補記說明
 
@@ -104,6 +117,7 @@ runtime.txt: python-3.11.11
 - SQLite（本地資料庫）
 - APScheduler（非同步排程）
 - Google Drive API v3（日記上傳）
+- Notion API（日記資料庫同步）
 
 ## 詳細專案狀態
 
