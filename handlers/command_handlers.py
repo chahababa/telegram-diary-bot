@@ -288,7 +288,7 @@ async def cmd_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """處理 /status 指令 — 查看 Bot 運作狀態"""
     from services.scheduler_service import get_now, get_jobs_info
-    from services.gdrive_service import get_drive_status
+    from services.gdrive_service import get_drive_status_async
     from services.notion_service import is_available as notion_is_available, validate_database_schema
     from models.database import Database
 
@@ -297,7 +297,7 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     now = get_now()
     jobs = get_jobs_info()
 
-    drive = get_drive_status(validate_remote=True)
+    drive = await get_drive_status_async(validate_remote=True, timeout=8)
     if drive.available:
         drive_status = f"✅ 已連線（{drive.auth_type}）"
     elif drive.configured:

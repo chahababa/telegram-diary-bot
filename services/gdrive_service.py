@@ -164,6 +164,22 @@ def get_drive_status(validate_remote: bool = False) -> DriveStatus:
         return DriveStatus(True, False, "unknown", str(e))
 
 
+async def get_drive_status_async(validate_remote: bool = False, timeout: int = 8) -> DriveStatus:
+    """非同步取得 Google Drive 狀態，避免 /status 被 Drive API 卡住。"""
+    try:
+        return await asyncio.wait_for(
+            asyncio.to_thread(get_drive_status, validate_remote),
+            timeout=timeout,
+        )
+    except asyncio.TimeoutError:
+        return DriveStatus(
+            True,
+            False,
+            "timeout",
+            f"Google Drive 狀態檢查逾時（>{timeout}s），可能是 OAuth refresh 或 Drive API 卡住",
+        )
+
+
 async def upload_diary(date_str: str, diary_content: str, max_retries: int = 3) -> str | None:
     """
     將日記上傳至 Google Drive
