@@ -2,6 +2,46 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-04-27] Runtime Settings and Sync Reliability Fixes
+
+### Summary
+
+Fixed runtime configuration drift between the web dashboard and bot services, improved
+Google Drive upload state tracking, and reduced blocking behavior during Notion sync.
+
+### Code Changes
+
+- Added `services/settings_service.py`
+  - Centralizes runtime settings from the database with `config.py` fallbacks
+  - Provides validated helpers for timezone, integer hours, GPT model, Drive folder ID, and Calendar ID
+- `services/scheduler_service.py`
+  - Uses persisted reminder, survey, diary generation, and timezone settings
+  - Marks scheduled Google Drive uploads with `mark_diary_uploaded()` after successful upload
+- `services/gdrive_service.py`
+  - Reads the Google Drive folder ID from runtime settings
+- `services/gcal_service.py`
+  - Reads Google Calendar ID and timezone from runtime settings
+- `services/ai_service.py`, `handlers/search_handler.py`, `services/notion_service.py`
+  - Read the GPT model from runtime settings
+- `services/embedding_service.py`
+  - Reads timezone from runtime settings
+- `services/notion_service.py`
+  - Runs synchronous Notion SDK calls in a background thread from async flows
+- `services/__init__.py`
+  - Keeps package initialization lightweight so tests do not load unrelated third-party integrations
+- `web/routes.py`
+  - Returns effective runtime settings in the dashboard API
+
+### Verification
+
+- Python compile check: OK
+- `git diff --check`: OK
+- Unit tests still require project dependencies to be installed locally; the previous unrelated
+  `openai` / `telegram` import failure is resolved, and the remaining local failure is missing
+  Google client libraries.
+
+---
+
 ## [2026-04-25] Google Drive Service Account Migration
 
 ### Summary

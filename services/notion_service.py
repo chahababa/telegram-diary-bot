@@ -14,6 +14,7 @@ from openai import AsyncOpenAI
 
 import config as _cfg
 from models.database import Database
+from services.settings_service import get_gpt_model, get_timezone_name
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +117,7 @@ async def _call_notion(method: Callable[..., Any], *args, **kwargs) -> Any:
     """呼叫 Notion API，遇到 rate limit 或暫時性錯誤時退避重試。"""
     for attempt in range(_MAX_NOTION_RETRIES):
         try:
-            return method(*args, **kwargs)
+            return await asyncio.to_thread(method, *args, **kwargs)
         except APIResponseError as e:
             is_retryable = e.status == 429 or e.status >= 500
             is_last_attempt = attempt == _MAX_NOTION_RETRIES - 1
@@ -224,7 +225,7 @@ async def extract_tags(diary_content: str) -> list[str]:
     )
     try:
         response = await _get_ai().chat.completions.create(
-            model=_cfg.GPT_MODEL,
+            model=get_gpt_model(),
             messages=[
                 {"role": "system", "content": "你是一個日記分類助手，只輸出標籤，不說其他話。"},
                 {"role": "user", "content": prompt},
@@ -254,7 +255,7 @@ async def extract_title(diary_content: str) -> str:
     )
     try:
         response = await _get_ai().chat.completions.create(
-            model=_cfg.GPT_MODEL,
+            model=get_gpt_model(),
             messages=[
                 {"role": "system", "content": "你是一個日記標題產生器，只輸出標題，不說其他話。"},
                 {"role": "user", "content": prompt},
@@ -330,7 +331,7 @@ async def push_diary(
         return False
 
     db = _get_db()
-    tz = ZoneInfo(_cfg.TIMEZONE)
+    tz = ZoneInfo(get_timezone_name())
     now_str = datetime.now(tz).isoformat()
 
     # ── 查詢既有推送紀錄 ──────────────────────────

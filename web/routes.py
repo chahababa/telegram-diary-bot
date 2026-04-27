@@ -12,6 +12,12 @@ from zoneinfo import ZoneInfo
 from flask import Flask, jsonify, request
 
 import config
+from services.settings_service import (
+    get_gcal_calendar_id,
+    get_google_drive_folder_id,
+    get_gpt_model,
+    get_timezone_name,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +44,7 @@ def create_flask_app() -> Flask:
     def api_status():
         from models.database import _get_db
         db = _get_db()
-        tz = ZoneInfo(config.TIMEZONE)
+        tz = ZoneInfo(get_timezone_name())
         today = datetime.now(tz).strftime('%Y-%m-%d')
 
         user_ids = db.get_all_user_ids()
@@ -61,9 +67,7 @@ def create_flask_app() -> Flask:
         except Exception:
             gdrive_ok = False
 
-        gcal_ok = bool(
-            db.get_setting('gcal_calendar_id', '') or config.GCAL_CALENDAR_ID
-        )
+        gcal_ok = bool(get_gcal_calendar_id())
 
         uptime = int(time.time() - _start_time)
 
@@ -97,14 +101,10 @@ def create_flask_app() -> Flask:
             'diary_generation_hour': db.get_setting(
                 'diary_generation_hour', str(config.DIARY_GENERATION_HOUR)
             ),
-            'gpt_model': db.get_setting('gpt_model', config.GPT_MODEL),
-            'timezone': db.get_setting('timezone', config.TIMEZONE),
-            'gcal_calendar_id': db.get_setting(
-                'gcal_calendar_id', config.GCAL_CALENDAR_ID
-            ),
-            'google_drive_folder_id': db.get_setting(
-                'google_drive_folder_id', config.GOOGLE_DRIVE_FOLDER_ID
-            ),
+            'gpt_model': get_gpt_model(),
+            'timezone': get_timezone_name(),
+            'gcal_calendar_id': get_gcal_calendar_id(),
+            'google_drive_folder_id': get_google_drive_folder_id(),
             'diary_template': db.get_setting('diary_template', ''),
         })
 

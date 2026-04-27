@@ -15,6 +15,7 @@ from telegram import Bot
 
 import config
 from models.database import get_all_user_ids, is_questionnaire_complete, get_or_create_summary, _get_db
+from services.settings_service import get_int_list_setting, get_int_setting, get_timezone_name
 
 logger = logging.getLogger(__name__)
 
@@ -27,13 +28,7 @@ _bot: Bot | None = None
 
 def _get_survey_hour(db) -> int:
     """讀取問卷開始時間，格式錯誤時退回預設值。"""
-    raw_survey = db.get_setting("survey_hour", "")
-    if raw_survey:
-        try:
-            return int(raw_survey)
-        except ValueError:
-            logger.warning("survey_hour 設定格式錯誤，改用預設值")
-    return config.SURVEY_HOUR
+    return get_int_setting("survey_hour", config.SURVEY_HOUR, min_value=0, max_value=23)
 
 
 def init_scheduler(bot: Bot):
@@ -46,7 +41,7 @@ def init_scheduler(bot: Bot):
     global scheduler, _bot
     _bot = bot
 
-    tz = ZoneInfo(config.TIMEZONE)
+    tz = ZoneInfo(get_timezone_name())
 
     # 使用與 diary_bot.db 相同的目錄存放 scheduler_jobs.db
     db_dir = Path(config.DATABASE_PATH).parent
@@ -63,14 +58,7 @@ def init_scheduler(bot: Bot):
     )
     
     db = _get_db()
-    raw_hours = db.get_setting("reminder_hours", "")
-    if raw_hours:
-        try:
-            reminder_hours = [int(x.strip()) for x in raw_hours.split(",")]
-        except ValueError:
-            reminder_hours = config.REMINDER_HOURS
-    else:
-        reminder_hours = config.REMINDER_HOURS
+    reminder_hours = get_int_list_setting("reminder_hours", config.REMINDER_HOURS)
 
     survey_hour = _get_survey_hour(db)
 
@@ -112,7 +100,7 @@ def init_scheduler(bot: Bot):
     scheduler.add_job(
         trigger_diary_generation,
         "cron",
-        hour=config.DIARY_GENERATION_HOUR,
+        hour=get_int_setting("diary_generation_hour", config.DIARY_GENERATION_HOUR, min_value=0, max_value=23),
         minute=0,
         id="diary_generation_00",
         replace_existing=True,
@@ -131,7 +119,7 @@ async def send_reminder():
         logger.error("Bot 尚未初始化")
         return
 
-    tz = ZoneInfo(config.TIMEZONE)
+    tz = ZoneInfo(get_timezone_name())
     now = datetime.now(tz)
     time_str = now.strftime("%H:%M")
     current_hour = now.hour
@@ -161,7 +149,7 @@ async def send_questionnaire():
         logger.error("Bot 尚未初始化")
         return
 
-    tz = ZoneInfo(config.TIMEZONE)
+    tz = ZoneInfo(get_timezone_name())
     today = datetime.now(tz).strftime("%Y-%m-%d")
 
     user_ids = get_all_user_ids()
@@ -191,7 +179,7 @@ async def auto_close_questionnaire():
     if _bot is None:
         return
 
-    tz = ZoneInfo(config.TIMEZONE)
+    tz = ZoneInfo(get_timezone_name())
     today = datetime.now(tz).strftime("%Y-%m-%d")
 
     user_ids = get_all_user_ids()
@@ -219,7 +207,7 @@ async def trigger_diary_generation():
     if _bot is None:
         return
 
-    tz = ZoneInfo(config.TIMEZONE)
+    tz = ZoneInfo(get_timezone_name())
     # 產出的是「昨天」的日記
     yesterday = (datetime.now(tz) - timedelta(days=1)).strftime("%Y-%m-%d")
 
@@ -230,7 +218,7 @@ async def trigger_diary_generation():
         try:
             from services.diary_service import generate_diary
             from services.gdrive_service import upload_diary, save_diary_locally
-            from models.database import update_summary_field, is_diary_generated
+            from models.database import is_diary_generated
 
             # 避免重複產出
             if is_diary_generated(user_id, yesterday):
@@ -253,7 +241,7 @@ async def trigger_diary_generation():
             # 上傳至 Google Drive
             file_id = await upload_diary(yesterday, diary)
             if file_id:
-                update_summary_field(user_id, yesterday, "diary_uploaded", True)
+                _get_db().mark_diary_uploaded(user_id, yesterday)
                 await _bot.send_message(
                     chat_id=user_id,
                     text="✅ 日記已同步儲存至 Google Drive！",
@@ -293,7 +281,7 @@ def shutdown_scheduler():
         logger.info("排程器已關閉")
 
 def get_now() -> datetime:
-    tz = ZoneInfo(config.TIMEZONE)
+    tz = ZoneInfo(get_timezone_name())
     return datetime.now(tz)
 
 def get_diary_date(now_dt: datetime = None) -> str:
@@ -312,7 +300,7 @@ def get_jobs_info() -> list[dict]:
     if not scheduler:
         return []
     jobs = []
-    tz = ZoneInfo(config.TIMEZONE)
+    tz = ZoneInfo(get_timezone_name())
     for job in scheduler.get_jobs():
         next_run = "未定"
         if job.next_run_time:

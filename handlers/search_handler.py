@@ -16,6 +16,7 @@ from telegram.ext import ContextTypes, CommandHandler, Application
 
 import config as _cfg
 from models.database import Database, _get_db
+from services.settings_service import get_gpt_model
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +66,7 @@ async def _summarize_results(query: str, hits: list[dict]) -> str:
     )
 
     response = await ai.chat.completions.create(
-        model=_cfg.GPT_MODEL,
+        model=get_gpt_model(),
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},

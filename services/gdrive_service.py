@@ -17,6 +17,7 @@ from googleapiclient.http import MediaFileUpload
 import asyncio
 
 import config
+from services.settings_service import get_google_drive_folder_id
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +144,8 @@ def get_drive_status(validate_remote: bool = False) -> DriveStatus:
 
     validate_remote=True 時會實際呼叫 Drive API，檢查 credentials 與資料夾可否讀取。
     """
-    if not config.GOOGLE_DRIVE_FOLDER_ID:
+    folder_id = get_google_drive_folder_id()
+    if not folder_id:
         return DriveStatus(False, False, "none", "缺少 GOOGLE_DRIVE_FOLDER_ID")
 
     try:
@@ -153,7 +155,7 @@ def get_drive_status(validate_remote: bool = False) -> DriveStatus:
 
         service = build("drive", "v3", credentials=creds)
         folder = service.files().get(
-            fileId=config.GOOGLE_DRIVE_FOLDER_ID,
+            fileId=folder_id,
             fields="id,name,mimeType",
             supportsAllDrives=True,
         ).execute()
@@ -220,8 +222,9 @@ async def upload_diary(date_str: str, diary_content: str, max_retries: int = 3) 
                 }
 
                 # 如果有指定資料夾 ID
-                if config.GOOGLE_DRIVE_FOLDER_ID:
-                    file_metadata["parents"] = [config.GOOGLE_DRIVE_FOLDER_ID]
+                folder_id = get_google_drive_folder_id()
+                if folder_id:
+                    file_metadata["parents"] = [folder_id]
 
                 media = MediaFileUpload(
                     tmp_path,
@@ -310,8 +313,9 @@ async def upload_diary_overwrite(date_str: str, diary_content: str, max_retries:
 
                 # 搜尋現有同名檔案
                 query = f"name='{filename}' and trashed=false"
-                if config.GOOGLE_DRIVE_FOLDER_ID:
-                    query += f" and '{config.GOOGLE_DRIVE_FOLDER_ID}' in parents"
+                folder_id = get_google_drive_folder_id()
+                if folder_id:
+                    query += f" and '{folder_id}' in parents"
 
                 search_results = await asyncio.to_thread(
                     lambda: service.files().list(
@@ -343,8 +347,8 @@ async def upload_diary_overwrite(date_str: str, diary_content: str, max_retries:
                         "name": filename,
                         "mimeType": "text/markdown",
                     }
-                    if config.GOOGLE_DRIVE_FOLDER_ID:
-                        file_metadata["parents"] = [config.GOOGLE_DRIVE_FOLDER_ID]
+                    if folder_id:
+                        file_metadata["parents"] = [folder_id]
 
                     request = service.files().create(
                         body=file_metadata,
@@ -370,4 +374,4 @@ async def upload_diary_overwrite(date_str: str, diary_content: str, max_retries:
 
 def is_available() -> bool:
     """檢查是否已經設定 Google Drive 相關環境變數"""
-    return bool(has_drive_credentials() and config.GOOGLE_DRIVE_FOLDER_ID)
+    return bool(has_drive_credentials() and get_google_drive_folder_id())

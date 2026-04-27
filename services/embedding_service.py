@@ -15,6 +15,7 @@ from openai import AsyncOpenAI
 
 import config as _cfg
 from models.database import _get_db
+from services.settings_service import get_timezone_name
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +100,7 @@ async def store_embeddings(user_id: int, diary_date: str, content: str) -> int:
     from datetime import datetime
 
     db = _get_db()
-    tz = ZoneInfo(_cfg.TIMEZONE)
+    tz = ZoneInfo(get_timezone_name())
     now_str = datetime.now(tz).isoformat()
 
     # 先刪除既有的 embedding 記錄，確保重建時資料一致

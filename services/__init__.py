@@ -1,13 +1,5 @@
-from services.ai_service import AIService
-from services.gdrive_service import upload_diary, save_diary_locally
-from services.scheduler_service import init_scheduler, shutdown_scheduler, get_now, get_diary_date
+"""Service package.
 
-__all__ = [
-    "AIService", 
-    "upload_diary", 
-    "save_diary_locally", 
-    "init_scheduler", 
-    "shutdown_scheduler", 
-    "get_now", 
-    "get_diary_date"
-]
+Keep this module lightweight so importing one service does not require every
+third-party integration dependency.
+"""

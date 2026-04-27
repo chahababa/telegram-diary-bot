@@ -15,6 +15,7 @@ from pathlib import Path
 import pytz
 
 import config
+from services.settings_service import get_gcal_calendar_id, get_timezone_name
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +57,7 @@ def has_calendar_credentials() -> bool:
 
 def is_available() -> bool:
     """檢查 Google Calendar 服務是否可用（有憑證且有設定 Calendar ID）"""
-    return has_calendar_credentials() and bool(config.GCAL_CALENDAR_ID)
+    return has_calendar_credentials() and bool(get_gcal_calendar_id())
 
 
 async def get_today_events(diary_date: str | None = None) -> list[dict]:
@@ -80,7 +81,7 @@ async def get_today_events(diary_date: str | None = None) -> list[dict]:
     Raises:
         Exception: 若 API 呼叫失敗
     """
-    tz = pytz.timezone(config.TIMEZONE)
+    tz = pytz.timezone(get_timezone_name())
     now = datetime.now(tz)
 
     if diary_date:
@@ -106,7 +107,7 @@ async def get_today_events(diary_date: str | None = None) -> list[dict]:
 
     events_result = await asyncio.to_thread(
         lambda: service.events().list(
-            calendarId=config.GCAL_CALENDAR_ID,
+            calendarId=get_gcal_calendar_id(),
             timeMin=time_min,
             timeMax=time_max,
             singleEvents=True,

@@ -9,8 +9,9 @@ from typing import Optional
 
 from openai import AsyncOpenAI
 
-from config import OPENAI_API_KEY, WHISPER_MODEL, WHISPER_LANGUAGE, GPT_MODEL
+from config import OPENAI_API_KEY, WHISPER_MODEL, WHISPER_LANGUAGE
 from models.database import EntryRecord, SurveyRecord
+from services.settings_service import get_gpt_model
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +114,7 @@ class AIService:
 
         try:
             response = await self.client.chat.completions.create(
-                model=GPT_MODEL,
+                model=get_gpt_model(),
                 messages=[
                     {"role": "system", "content": "你是板橋好初早餐老闆的私人日記助手，專門幫他記錄每天的生活點滴。"},
                     {"role": "user", "content": prompt},
